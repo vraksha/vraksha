@@ -1,6 +1,5 @@
 def forensic_prompt():
-    return
-    """
+    return """
     You are a Senior Code Forensic Analyst. Your goal is to distinguish between 
     AI-generated boilerplate and human-authored logic.
 
