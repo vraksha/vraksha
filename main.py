@@ -1,10 +1,14 @@
 import os
 from pathlib import Path
 
+import sys
+import io
+
 from anthropic import Anthropic
 
 from extract_api import get_api_key
 from forensic_prompt import forensic_prompt
+from extract_content import content_extractor
 
 API_KEY = get_api_key(".env.local")
 
@@ -12,19 +16,25 @@ client = Anthropic(api_key=API_KEY)
 
 FORENSIC_PROMPT = forensic_prompt()
 
-def file_content_extractor(path = Path("memory"), filename) -> dict:
-    contents = []
+# print(content_extractor(filename="rules"))
 
-    for file in path.iterdir():
-        if (path/file).name == ".gitkeep":
-            continue
+def call_llm(extracted_content):
+    response = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=1500,
+        system=FORENSIC_PROMPT,
+        messages=[
+            {
+                "role": "user",
+                "content": f"Analyze this file and answer in short, what's the current state of my latest project? {extracted_content}"
+            }
+            ],
+    )
 
-        if file:
-            with open(file) as f:
-                name = file.stem
-                contents.append({name:f.read()})
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-    return contents
+    print(response.content[0].text)
 
-print(file_content_extractor("rules"))
+extracted_content = content_extractor(filename="projects")
 
+call_llm(extracted_content)
