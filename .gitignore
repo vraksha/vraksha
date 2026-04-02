@@ -1,1 +1,7 @@
 .env.local
+
+memory/*
+
+!memory/.gitkeep
+
+__pycache__/
