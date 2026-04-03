@@ -9,25 +9,31 @@ Your personal AI assistant
 ```
 e:\Agent
 ├── .env.local
+├── draft.md
 ├── main.py
+├── README.md
 ├── requirements.txt
 ├── memory/
+│   ├── .gitkeep
 │   ├── memory.yaml
 │   ├── projects.yaml
 │   └── rules.md
 └── src/
-    ├── __init__.py          
+    ├── __init__.py
     ├── agent/
-    │   ├── __init__.py      
+    │   ├── __init__.py
     │   ├── llm.py
-    │   └── prompts.py      # agent prompts
+    │   ├── loop.py
+    │   └── prompts.py           # agent prompts
     ├── slop_detector/
-    │   ├── __init__.py      
-    │   ├── detector.py      
-    │   └── prompts.py       # forensic prompts 
+    │   ├── __init__.py
+    │   ├── detector.py
+    │   └── prompts.py           # forensic prompts
     └── utils/
-        ├── __init__.py     
+        ├── __init__.py
         ├── changes.py
+        ├── client.py
         ├── extract_api.py
         └── extract_content.py
+
 ```
