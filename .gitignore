@@ -7,3 +7,5 @@ memory/*
 __pycache__/
 
 draft.md
+
+venv/
