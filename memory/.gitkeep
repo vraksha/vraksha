@@ -1,0 +1,8 @@
+## This folder contains 3 files:
+
+1. rules.md:
+    - hardcoded, agent won't try to and be able to change it
+2. memory.yaml (works as a persistent memory for your agent(s)):
+    - important content from the conversation you have with the agent
+3. projects.yaml:
+    - information of your recent projects
