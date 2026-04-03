@@ -1,4 +1,4 @@
-def get_api_key(provider, file_path=".env.local") -> str:
+def get_api_key(provider, file_path=".env") -> str:
     import os
     from dotenv import load_dotenv
 
