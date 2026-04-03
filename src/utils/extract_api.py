@@ -1,9 +1,12 @@
-def get_api_key(file_path=".env.local") -> str:
+def get_api_key(provider, file_path=".env.local") -> str:
     import os
-    from dotenv import load_dotenv, dotenv_values
+    from dotenv import load_dotenv
 
     load_dotenv(file_path)
 
-    API_KEY = os.getenv("ANTHROPIC_API_KEY")
-
-    return API_KEY
+    if provider.lower() == "anthropic":
+        return  os.getenv("ANTHROPIC_API_KEY")
+    elif provider.lower() == "openai":
+        return os.getenv("OPENAI_API_KEY")
+    else:
+        raise ValueError("Invalid provider")
