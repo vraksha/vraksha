@@ -23,6 +23,9 @@ def apply_changes(response_text: str, base=Path("memory")):
     base = Path(base)
     base.mkdir(parents=True, exist_ok=True)
 
+    if not response_text:
+        return 
+
     matched_files = {}
 
     # ── Strategy 1: XML-like <file_update> tags ──────────────────────────
@@ -64,7 +67,7 @@ def apply_changes(response_text: str, base=Path("memory")):
                 matched_files[filename] = block.group(1).strip()
 
     if not matched_files:
-        print("⚠️ No valid file updates found in the LLM response.")
+        print("ℹ️ No file updates this message.")
         return 0
 
     updates_applied = 0
