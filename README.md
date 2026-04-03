@@ -4,6 +4,10 @@ Your personal AI assistant
 
 > Note: It supports API keys for both Anthropic and OpenAI, but prioritizes Claude over ChatGPT if both are provided.
 
+## Before using
+
+- Make sure you have either ANTHROPIC_API_KEY or OPENAI_API_KEY in your .env file
+
 ## Structure
 
 ```
