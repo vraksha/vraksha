@@ -10,7 +10,9 @@ import sys
 
 from src.agent.loop import run
 
+from src.utils.fetcher import fetcher
+
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 if __name__ == "__main__":
-    run()
+    print(fetcher("https://github.com/thecybro/AI-Agent/blob/main/main.py"))
