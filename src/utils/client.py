@@ -3,9 +3,9 @@ from openai import OpenAI
 from src.utils.extract_api import get_api_key
 
 # It selects the llm whose api key is given, but prioritizes claude over chatgpt if both are given
-def client_info():
-    anthropic_key = get_api_key("anthropic", ".env.local")
-    openai_key = get_api_key("openai", ".env.local")
+def client_info(file_path=".env"):
+    anthropic_key = get_api_key("anthropic", file_path)
+    openai_key = get_api_key("openai", file_path)
 
     if anthropic_key and anthropic_key.strip():
         return {
