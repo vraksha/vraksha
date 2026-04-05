@@ -1,8 +1,9 @@
 import requests
 import base64
 
-from src.utils.extract_token import get_token
-from src.utils.url_manipulator import manipulate
+from src.utils.github_token import get_token
+from src.utils.url_converter import manipulate
+from src.utils.read_memory import content_extractor
 
 TOKEN = get_token()
 
@@ -11,7 +12,7 @@ headers = {
 }
 
 
-def fetcher(repo_url):
+def get_content(repo_url):
     api_url = manipulate(repo_url)
     res = requests.get(api_url, headers=headers)
 
@@ -42,7 +43,7 @@ def fetcher(repo_url):
                 results[file_path] = content
 
             elif item["type"] == "dir":
-                results.update(fetcher(file_url))
+                results.update(content_extractor(file_url))
 
         return results
 
