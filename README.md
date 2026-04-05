@@ -33,9 +33,15 @@ Nothing is stored in the cloud. Everything lives in your own files.
 
 > Note: It supports API keys for both Anthropic and OpenAI, but prioritizes Claude over ChatGPT if both are provided.
 
-## Before using
+### Quick Start
+1.  Populate `.env.local` with your API keys:
+    - ANTHROPIC_API_KEY=...
+    - OPENAI_API_KEY=...
+    - GITHUB_TOKEN=...  (for slop detector)
+2.  Define your persona in `memory/rules.md`.
+3.  Run `python main.py` and start building.
 
-- Make sure you have either ANTHROPIC_API_KEY or OPENAI_API_KEY in your .env file
+> "Vraksha remembers so you can focus on creating."
 
 ## Structure
 
