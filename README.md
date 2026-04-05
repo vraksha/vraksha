@@ -4,7 +4,7 @@
   <img src="https://github.com/vraksha/vraksha/blob/main/assets/logo.png" alt="Vraksha Logo" width="200">
 </p>
 
-Vraksha is a personal AI agent that remembers.
+A personal AI agent that remembers.
 
 Most AI assistants forget everything the moment a session ends. Vraksha doesn't.
 It reads from and writes to three structured files before and after every session —
