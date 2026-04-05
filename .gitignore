@@ -11,3 +11,5 @@ draft.md
 venv/
 
 secret/
+
+*.txt
