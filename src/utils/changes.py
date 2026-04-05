@@ -28,7 +28,7 @@ def apply_changes(response_text: str, base=Path("memory")):
 
     matched_files = {}
 
-    # ── Strategy 1: XML-like <file_update> tags ──────────────────────────
+    # XML-like <file_update> tags 
     xml_pattern = r'<file_update\s+name="([^"]+?)">(.*?)</file_update>'
     for m in re.finditer(xml_pattern, response_text, re.DOTALL):
         name = m.group(1).strip()
@@ -39,7 +39,7 @@ def apply_changes(response_text: str, base=Path("memory")):
         if _is_valid_filename(name):
             matched_files[name] = m.group(2).strip()
 
-    # ── Strategy 2: <write_to_file><path>filename</path>content ────────────
+    # <write_to_file><path>filename</path>content 
     if not matched_files:
         wt_pattern = r'<write_to_file>\s*<path>([^<]+?)</path>(.*?)</write_to_file>'
         for m in re.finditer(wt_pattern, response_text, re.DOTALL):
@@ -51,7 +51,7 @@ def apply_changes(response_text: str, base=Path("memory")):
             if _is_valid_filename(name):
                 matched_files[name] = m.group(2).strip()
 
-    # ── Strategy 3: Filename label + fenced code block ───────────────────
+    # Filename label + fenced code block
     if not matched_files:
         block_pattern = r'```[\w]*\n(.*?)```'
         for block in re.finditer(block_pattern, response_text, re.DOTALL):
@@ -125,7 +125,7 @@ def _extract_filename(preceding_text: str, base: Path) -> Optional[str]:
         if _is_valid_filename(c):
             cleaned.append(c)
 
-    # Prefer a known file — take the last (closest) match
+    # Prefer a known file, take the last (closest) match
     for candidate in reversed(cleaned):
         if candidate in known_files:
             return candidate

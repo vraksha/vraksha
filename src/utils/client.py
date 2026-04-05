@@ -2,7 +2,7 @@ from anthropic import Anthropic
 from openai import OpenAI
 from src.utils.api_keys import get_api_key
 
-# It selects the llm whose api key is given, but prioritizes claude over chatgpt if both are given
+# Selecting the llm whose api key is given, but prioritizing Claude over ChatGPT if both are given
 def client_info():
     anthropic_key = get_api_key("anthropic")
     openai_key = get_api_key("openai")
