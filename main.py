@@ -10,9 +10,11 @@ import sys
 
 from src.agent.loop import run
 
-from src.utils.fetcher import fetcher
+from src.utils.fetch_content import get_content
+
+from src.slop_detector.detector import call_llm
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 if __name__ == "__main__":
-    print(fetcher("https://github.com/thecybro/AI-Agent/blob/main/main.py"))
+    print(call_llm("https://github.com/thecybro/AI-Agent"))
