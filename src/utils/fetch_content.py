@@ -1,16 +1,42 @@
 import requests
 import base64
+from urllib.parse import urlparse
 
-from src.utils.github_token import get_token
 from src.utils.url_converter import manipulate
-from src.utils.read_memory import content_extractor
+from src.utils.github_token import get_token
 
 TOKEN = get_token()
 
 headers = {
-    "Authorization": f"Bearer {TOKEN}"
+    "Authorization": f"Bearer {TOKEN}",
+    "Accept": "application/vnd.github+json"
 }
 
+def get_repo_tree(repo_url, branch="main"):
+    path_parts = urlparse(repo_url).path.strip("/").split("/")
+
+    if len(path_parts) < 2:
+        raise ValueError("Invalid GitHub URL")
+
+    owner, repo = path_parts[0], path_parts[1]
+
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+    
+    res = requests.get(api_url, headers=headers)
+
+    data = res.json()
+
+    if isinstance(data, dict) and data.get("type") == "file":
+        content = base64.b64decode(data["content"]).decode("utf-8")
+        return content
+
+    if res.status_code != 200:
+        if branch == "main":
+            return get_repo_tree(repo_url, branch="master")
+
+        raise Exception(f"Failed to fetch tree: {res.status_code}")
+
+    return res.json().get("tree", []), owner, repo, branch
 
 def get_content(repo_url):
     api_url = manipulate(repo_url)
@@ -22,31 +48,25 @@ def get_content(repo_url):
 
     data = res.json()
 
-    # Case 1: File
     if isinstance(data, dict) and data.get("type") == "file":
         content = base64.b64decode(data["content"]).decode("utf-8")
         return content
 
-    # Case 2: Directory
-    elif isinstance(data, list):
-        results = {}
+    tree, owner, repo, branch = get_repo_tree(repo_url)
+    results = {}
 
-        for item in data:
-            file_url = item["url"]
+    for item in tree:
+        if item["type"] == "blob":
             file_path = item["path"]
 
-            if item["type"] == "file":
-                file_res = requests.get(file_url, headers=headers)
-                file_data = file_res.json()
+            raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{file_path}"
+            
+            file_res = requests.get(raw_url, headers=headers)
+            
+            if file_res.status_code == 200:
+                results[file_path] = file_res.text
+            else:
+                print(f"Skipping {file_path}: {file_res.status_code}")
 
-                content = base64.b64decode(file_data["content"]).decode("utf-8")
-                results[file_path] = content
-
-            elif item["type"] == "dir":
-                results.update(content_extractor(file_url))
-
-        return results
-
-    else:
-        raise Exception("Unknown response format")
+    return results
 
