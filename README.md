@@ -1,7 +1,7 @@
 # Vraksha - Your Personal AI Assistant
 
 <p align="center">
-  <img src="https://github.com/vraksha/vraksha/blob/main/assets/Vraksha.png" alt="Vraksha Logo" width="200">
+  <img src="https://github.com/vraksha/vraksha/blob/main/assets/Vraksha.png" alt="Vraksha Logo" style="width: 60%;">
 </p>
 
 A personal AI agent that remembers.
