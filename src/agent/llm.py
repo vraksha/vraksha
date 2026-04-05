@@ -5,19 +5,13 @@ from src.utils.changes import apply_changes
 
 from src.utils.client import client_info
 
-_SYSTEM_CACHE = None
-
 def _system():
-    global _SYSTEM_CACHE
-    if _SYSTEM_CACHE:
-        return _SYSTEM_CACHE
-
     # Getting the project, memory and rules
     rules = content_extractor(filename="rules")
     project = content_extractor(filename="projects")
     memory = content_extractor(filename="memory")
 
-    _SYSTEM_CACHE = f"""
+    _SYSTEM_PROMPT = f"""
             {Prompts.system()}
 
             <file_list>
@@ -35,9 +29,9 @@ def _system():
 
 
             </file_list>
-        """
+            """
 
-    return _SYSTEM_CACHE
+    return _SYSTEM_PROMPT
 
 
 def call_llm(messages) -> str:
