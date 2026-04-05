@@ -1,6 +1,6 @@
 import sys, io
 from src.agent.prompts import Prompts
-from src.utils.extract_content import content_extractor
+from src.utils.read_memory import content_extractor
 from src.utils.changes import apply_changes
 
 from src.utils.client import client_info
