@@ -14,7 +14,9 @@ from src.utils.fetch_content import get_content
 
 from src.slop_detector.detector import call_llm
 
+from src.utils.fetch_commits import get_commits
+
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 if __name__ == "__main__":
-    print(call_llm("https://github.com/thecybro/AI-Agent"))
+    print(get_content("https://github.com/thecybro/AI-Agent/blob/main/main.py"))
