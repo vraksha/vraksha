@@ -4,9 +4,9 @@
   <img src="https://github.com/vraksha/vraksha/blob/main/assets/Vraksha.png" alt="Vraksha Logo" style="width: 60%;">
 </p>
 
-A personal AI agent that remembers.
+A **personal** AI agent that remembers.
 
-Most AI assistants forget everything the moment a session ends. Vraksha doesn't.
+Most AI assistants forget everything the moment a session ends. **Vraksha** doesn't.
 It reads from and writes to three structured files before and after every session —
 so it always knows who you are, what you're building, and what was decided last time.
 You never re-explain your context. It already knows.
@@ -18,6 +18,8 @@ You never re-explain your context. It already knows.
 - Updates its own memory at the end of every session — compressed, clean, no noise
 - Tracks your projects and decisions across time
 - Follows rules that are hardcoded and untouchable — even by itself
+
+- Distinguishes between AI slop vs Human written content.
 
 ## How Memory Works
 
