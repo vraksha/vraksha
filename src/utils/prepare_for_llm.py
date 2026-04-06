@@ -4,31 +4,31 @@ from src.utils.services.fetch_content import get_content
 
 
 class PrepareForLLM:
+    
     @classmethod
     def get_data(cls, messages: list[dict]) -> dict:
-        last_user_message = next(
-            (m["content"] for m in reversed(messages) if m["role"] == "user"),
-            None
-        )
-
-        if not last_user_message:
-            return {"url": None, "content": None, "commits": None, "prompt": None}
-
-        data = UserInput(raw_text=last_user_message)
-
+        current_prompt = messages[-1]["content"] if messages else ""
+        
+        data = UserInput(raw_text=current_prompt)
+        
         content = None
         commits = None
-
+        
         if data.url:
             url = str(data.url)
             content = get_content(url)
             commits = get_commits(url)
-
-        return {
-            "url": str(data.url) if data.url else None,
-            "content": content,
-            "commits": commits,
-            "prompt": data.prompt,
-        }
-
+            return {
+                "url": url,
+                "content": content,
+                "commits": commits,
+                "prompt": data.prompt,
+            }
         
+        return {
+            "url": None,
+            "content": None,
+            "commits": None,
+            "prompt": current_prompt,
+        }
+            
