@@ -31,13 +31,9 @@ def apply_changes(response_text: str, part: str, base=Path("memory")):
 
     matched_files = {}
 
-    if part == "agent":
-        base = Path("memory") / Path("agent")
+    base = Path("memory") / Path(part)
 
-    elif part == "slop_detector":
-        base = Path("memory") / Path("slop_detector")
-
-    else:
+    if base not in [Path("memory/agent"), Path("memory/slop_detector")]:
         raise ValueError("Invalid part")
 
     # XML-like <file_update> tags 
