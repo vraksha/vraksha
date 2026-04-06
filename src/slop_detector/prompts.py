@@ -41,11 +41,32 @@ class Prompts:
             confidence_reasoning: max 3 sentences
             green_flags: [deduplicated list]
             weak_points: [deduplicated list]
+
+            ## When to Update Files
+            - Update files only when new decisions, project state changes, or context shifts occur.
+            - Do NOT update for casual conversation or questions with no new information.
+
+            ## File Update Format — CRITICAL
+            Use this exact format:
+
+            <file_update name="memory.yaml">
+            full file content here
+            </file_update>
+
+            - NEVER use markdown code blocks or backticks for file updates — they will be silently lost
+            - ONLY update: memory.yaml, projects.yaml
+            - NEVER create new files
+            - When rewriting memory.yaml, rewrite the ENTIRE file — never append
+            - Keep memory.yaml under 100 lines, compress older context if needed
+            - Keep open_questions as actual unanswered questions only
+            - Never duplicate entries
+
             """
 
     @staticmethod
-    def analyze(repo_url: str, repo_contents: str, commit_data: str, wakatime_data: str = None) -> str:
+    def analyze(user_prompt: str, repo_url: str, repo_contents: str, commit_data: str, wakatime_data: str = None) -> str:
         return f"""
+            User Prompt/message: {user_prompt}
             Repo: {repo_url}
             Commits: {commit_data}
             WakaTime: {wakatime_data or 'not provided'}
