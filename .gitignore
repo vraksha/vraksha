@@ -1,8 +1,12 @@
 .env.local
 
-memory/*
+memory/agent/*
+memory/slop_detector/*
 
-!memory/.gitkeep
+!memory/agent/.gitkeep
+!memory/slop_detector/.gitkeep
+
+memory/rules.md
 
 __pycache__/
 
@@ -11,5 +15,3 @@ draft.md
 venv/
 
 secret/
-
-*.txt
