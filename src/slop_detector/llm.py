@@ -52,19 +52,23 @@ def call_llm(messages: list[dict]) -> str:
     )
 
     user_prompt = Prompts.analyze(
+        user_prompt=prompt_only,
         repo_url=repo_url,
         repo_contents=content,
         commit_data=commits
     )
 
-    full_user_content = "\n\n".join(filter(None, [prompt_only, user_prompt]))
+    history = messages[:-1]
+
+    full_user_content = "\n\n".join(filter(None, [user_prompt]))
 
     if client_name == "anthropic":
         response = client.messages.create(
             model=model,
             max_tokens=1500,
             system=_forensic(),
-            messages=[
+            messages=
+            history + [
                 {
                     "role": "user",
                     "content": full_user_content
@@ -83,10 +87,12 @@ def call_llm(messages: list[dict]) -> str:
                     "role": "system",
                     "content": _forensic()
                 },
-                {
-                    "role": "user",
-                    "content": full_user_content
-                }
+                messages + [
+                    {
+                        "role": "user",
+                        "content": full_user_content
+                    }
+                ]
             ]
         )
 
