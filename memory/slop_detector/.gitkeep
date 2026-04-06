@@ -1,0 +1,7 @@
+## This folder contains 2 files:
+
+1. memory.yaml (works as a persistent memory for your slop detector):
+    - important content from the conversation you have with the slop detector
+2. projects.yaml:
+    - information of your recent projects
+    

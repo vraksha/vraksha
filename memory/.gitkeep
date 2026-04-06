@@ -1,8 +1,10 @@
-## This folder contains 3 files:
+# This folder contains 1 file and 2 sub folders:
 
-1. rules.md:
-    - hardcoded, agent won't try to and be able to change it
-2. memory.yaml (works as a persistent memory for your agent(s)):
-    - important content from the conversation you have with the agent
-3. projects.yaml:
-    - information of your recent projects
+1. rules.md
+    - Hardcoded rules set by you, about your whole persona
+    - Agent/detector will read it and never will/won't be able to make a change in it
+
+2. agent/
+    - storage space for memory and projects of the agent
+3. slop_detector/
+    - storage space for memory and projects of the slop_detector
