@@ -16,7 +16,7 @@ class PrepareForLLM:
         
         if data.url:
             url = str(data.url)
-            content = get_content(url)
+            content = get_content(url)[:2000]
             commits = get_commits(url)
             return {
                 "url": url,
