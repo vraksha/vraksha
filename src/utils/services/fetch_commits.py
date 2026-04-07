@@ -50,7 +50,6 @@ def get_commits(url: str) -> dict | None:
     )
 
     return {
-        {
     "burst_rate": {
         "commits": len(raw),
         "total_minutes": round(total_minutes, 2),
@@ -70,7 +69,6 @@ def get_commits(url: str) -> dict | None:
     },
     
     "commit_messages": messages
-    }
     }
 
     
