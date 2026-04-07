@@ -1,4 +1,4 @@
-# Vraksha - Your Personal AI Assistant
+# Vraksha - Assistant That Never Forgets
 
 <p align="center">
   <img src="https://github.com/vraksha/vraksha/blob/main/assets/Vraksha.png" alt="Vraksha Logo" style="width: 60%;">
