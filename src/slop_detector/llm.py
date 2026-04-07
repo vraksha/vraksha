@@ -40,7 +40,7 @@ def _forensic():
     return _SYSTEM_PROMPT
 
 
-def call_llm(messages: list[dict]) -> str:
+def detector_agent(messages: list[dict]) -> str:
     llm = client_info()
 
     client, client_name, model = llm["client"], llm["name"], llm["model"]

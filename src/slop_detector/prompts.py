@@ -41,6 +41,14 @@ class Prompts:
             confidence_reasoning: max 3 sentences
             green_flags: [deduplicated list]
             weak_points: [deduplicated list]
+            
+            - If this is a benchmark run, include the 'status' (PASS/FAIL) based on user-provided ground truth.
+
+            ## BENCHMARK PROTOCOL (CRITICAL for high accuracy)
+            - If the user provides a "Ground Truth" (e.g., "This was actually Human"), compare it to your prediction.
+            - Update memory.yaml under 'validation_benchmarks' with the result.
+            - If you were WRONG (FAIL), analyze the discrepancy: Did you over-index on a specific A/H signal?
+            - A v1.0.0 agent prioritizes avoiding False Positives (calling Human "AI").
 
             ## When to Update Files
             - Update files only when new decisions, project state changes, or context shifts occur.
