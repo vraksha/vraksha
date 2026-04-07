@@ -20,6 +20,8 @@ def _forensic():
         No URL yet → ask once. URL given earlier → use it, don't ask again.
         Code-only (no commits/wakatime) → analyze, flag lower confidence, don't harsh-verdict.
 
+        If you see content and commits as None, SUPPOSE that the repository or file is private and ask user to make it public or give another repo
+
         {Prompts.forensic()}
 
         ## Post-analysis: always append to projects.yaml
