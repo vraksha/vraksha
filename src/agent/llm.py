@@ -49,13 +49,16 @@ def agent(messages: list[dict]) -> str:
         
     data = UserInput(raw_text=current_prompt)
 
+    # Slop detector agent is called here because general agent doesn't know about code/repo analysis
+    # Response given by detector agent is added to messages, hence the agent gets the response
     if data.url:
-        with console.status("\n[bold yellow]Routing to Slop Detector specialist...\n", spinner="dots"):
-            detector_verdict = detector_agent(messages)
+        console.log("[yellow]Specialist Hand-off initiated.[/yellow]")
+        
+        detector_verdict = detector_agent(messages)
 
-            messages[-1]["content"] = (
-                f"USER ORIGINAL REQUEST: {current_prompt}\n\n" # Keep their context!
-                f"--- INTERNAL FORENSIC REPORT ---\n{detector_verdict}\n"
+        messages[-1]["content"] = (
+            f"USER ORIGINAL REQUEST: {current_prompt}\n\n" # Keep their context!
+            f"--- INTERNAL FORENSIC REPORT ---\n{detector_verdict}\n"
                 "--- INSTRUCTION ---\n"
                 "Explain the report above to the user based on their original request."
             )

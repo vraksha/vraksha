@@ -45,25 +45,32 @@ def get_commits(url: str) -> dict | None:
     ]
 
     total_minutes = (
-        (parsed_times[0] - parsed_times[-1]).total_seconds() / 60
+        (parsed_times[-1] - parsed_times[0]).total_seconds() / 60
         if len(parsed_times) >= 2 else 0
     )
 
     return {
-        "burst_rate": {
-            "commits": len(raw),
-            "over_minutes": round(total_minutes, 2)
-        },
+        {
+    "burst_rate": {
+        "commits": len(raw),
+        "total_minutes": round(total_minutes, 2),
+        "lpm": round(total_additions / max(total_minutes, 0.1), 2)
+    },
 
+    "temporal_consistency": {
         "median_interval_seconds": round(median(intervals), 2) if intervals else None,
+        "max_to_median_ratio": round(max(intervals) / median(intervals), 2) if intervals else 1.0
+    },
 
-        "churn": {
-            "additions": total_additions,
-            "deletions": total_deletions,
-            "files_changed": len(files_changed)
-        },
-        
-        "commit_messages": messages
+    "code_evolution": {
+        "additions": total_additions,
+        "deletions": total_deletions,
+        "files_changed": len(files_changed),
+        "deletion_ratio": round(total_deletions / max(total_additions, 1), 2)
+    },
+    
+    "commit_messages": messages
+    }
     }
 
     

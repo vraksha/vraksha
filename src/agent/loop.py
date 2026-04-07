@@ -31,8 +31,8 @@ def run_agent():
         prompt = Prompt.ask(f"\n[bold green]Ask something to {agent_name}[/bold green]").strip()
 
         if prompt.lower() in ["quit", "exit", "bye", "q", "e", "b"]:
-            with console.status(f"[bold yellow]💾 {agent_name} is saving session memory...", spinner="bouncingBar"):
-                save_prompt = f"Finalize: You '{agent_name}' must summarize this session into memory.yaml and update projects.yaml."
+            with console.status(f"\n[bold yellow]💾 {agent_name} is saving session memory...", spinner="bouncingBar"):
+                save_prompt = f"\nFinalize: You '{agent_name}' must summarize this session into memory.yaml and update projects.yaml."
 
                 messages.append({
                     "role": "user",
@@ -43,10 +43,10 @@ def run_agent():
 
             console.print(Panel(
                 Markdown(final_response), 
-                title="[bold yellow]Final Memory Sync[/bold yellow]", 
+                title="\n[bold yellow]Final Memory Sync[/bold yellow]", 
                 border_style="yellow"
             ))
-            console.print(f"[bold green]✅ Memory persisted. Goodbye {user_name}![/bold green]\n")
+            console.print(f"\n[bold green]✅ Memory persisted. Goodbye {user_name}![/bold green]\n")
             break
 
         messages.append({
@@ -65,7 +65,7 @@ def run_agent():
         console.print("\n", Rule(style="dim"))
         console.print(Panel(
             Markdown(response_text), 
-            title=f"[bold magenta]{agent_name} Output[/bold magenta]", 
+            title=f"\n[bold magenta]{agent_name} Output[/bold magenta]", 
             border_style="magenta",
             padding=(1, 2)
         ))
@@ -73,7 +73,7 @@ def run_agent():
 
         if "VERIFICATION_REQUIRED" in response_text:
             is_correct = Prompt.ask(
-                f"[bold yellow]Agent {agent_name}: Was this verdict correct?",
+                f"\n[bold yellow]Agent {agent_name}: Was this verdict correct?",
                 choices=["y", "n", "skip"],
                 default="y"
             )
@@ -101,7 +101,7 @@ def run_agent():
                     "content": final_correction_prompt
                 })
 
-                with console.status("[bold blue]Updating memory and recalibrating...", spinner="earth"):
+                with console.status("\n[bold blue]Updating memory and recalibrating...", spinner="earth"):
                     final_sync_response = agent(messages)
                     
                     messages.append({
@@ -109,7 +109,7 @@ def run_agent():
                         "content": final_sync_response
                     })
                     
-                    console.print("[bold green]Memory Synced.[/bold green]")
+                    console.print("\n[bold green]Memory Synced.[/bold green]")
                     console.print(Panel(Markdown(final_sync_response), title="System Update", border_style="green"))
             
             elif is_correct == "y":
@@ -118,6 +118,6 @@ def run_agent():
                     "content": "User confirmed the verdict is correct. Update validation_benchmarks with a PASS."
                 })
 
-    console.print(Rule(f"[bold cyan]{agent_namec} TERMINATED SESSION[/bold cyan]", style="cyan"))
-    console.print(Rule(f"[bold cyan]Bye {user_name}![/bold cyan]", style="cyan"))
+    console.print(Rule(f"\n[bold cyan]{agent_namec} TERMINATED SESSION[/bold cyan]", style="cyan"))
+    console.print(Rule(f"\n[bold cyan]Bye {user_name}![/bold cyan]", style="cyan"))
 
