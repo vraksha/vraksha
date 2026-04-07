@@ -22,8 +22,6 @@ def fetch_commit_detail(owner: str, repo: str, sha: str) -> dict | None:
     url = f"https://api.github.com/repos/{owner}/{repo}/commits/{sha}"
     res = requests.get(url, headers=_headers())
 
-    print(res.status_code, res.text[:200])
-
     if res.status_code != 200:
         return None
 
