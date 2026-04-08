@@ -1,8 +1,9 @@
-def get_api_key(provider: str) -> str:
-    import os
-    from dotenv import load_dotenv
-    from pathlib import Path
+import os
+from dotenv import load_dotenv
+from pathlib import Path
 
+
+def get_api_key(provider: str) -> str:
     # Walk up from this file's directory to find the project root containing .env files
     current = Path(__file__).resolve().parent
 

@@ -2,6 +2,21 @@ from pathlib import Path
 import re
 from typing import Optional
 
+import yaml
+
+_CONFIG_PATH = Path(__file__).parent.parent.parent /"memory/IMMUTABLE.yaml"
+
+_immutables_cache = None
+
+def _load_immutables():
+    global _immutables_cache
+    
+    if _immutables_cache is None:
+        with open(_CONFIG_PATH) as f:
+            _immutables_cache = yaml.safe_load(f)["IMMUTABLE"]
+            
+    return _immutables_cache
+
 
 def apply_changes(response_text: str, part: str, base=Path("memory")):
     """
@@ -15,26 +30,27 @@ def apply_changes(response_text: str, part: str, base=Path("memory")):
 
     Args:
         response_text: The raw LLM response text.
-        base: Target directory where changes are applied. Defaults to "memory".
+        part: Target skill directory inside base
+        base: Target base directory where changes are applied. Defaults to "memory".
 
     Returns:
         Number of files successfully updated.
     """
+
     base = Path(base)
     base.mkdir(parents=True, exist_ok=True)
 
-    if not response_text:
-        return 
+    if part != "agent":
+        part = Path(f"skills/{part}")
 
-    if not part:
-        raise ValueError("Invalid part")
+    part = Path(base)/part
+    part.mkdir(parents=True, exist_ok=True)
+
+    if not response_text:
+        return None
 
     matched_files = {}
 
-    base = Path("memory") / Path(part)
-
-    if base not in [Path("memory/agent"), Path("memory/slop_detector")]:
-        raise ValueError("Invalid part")
 
     # XML-like <file_update> tags 
     xml_pattern = r'<file_update\s+name="([^"]+?)">(.*?)</file_update>'
@@ -48,35 +64,37 @@ def apply_changes(response_text: str, part: str, base=Path("memory")):
         if _is_valid_filename(name):
             matched_files[name] = m.group(2).strip()
 
-    # <write_to_file><path>filename</path>content 
-    if not matched_files:
-        # This pattern captures the path inside <path> tags and the following content
-        wt_pattern = r'<write_to_file>\s*<path>(.*?)</path>(.*?)</write_to_file>'
 
-        for m in re.finditer(wt_pattern, response_text, re.DOTALL):
-            name = m.group(1).strip()
-            
-            if _is_hardcoded(name):
-                continue
-            
-            if _is_valid_filename(name):
-                matched_files[name] = m.group(2).strip()
+        # <write_to_file><path>filename</path>content 
+        if not matched_files:
+            # This pattern captures the path inside <path> tags and the following content
+            wt_pattern = r'<write_to_file>\s*<path>(.*?)</path>(.*?)</write_to_file>'
 
-    # Filename label + fenced code block
-    if not matched_files:
-        block_pattern = r'```[\w]*\n(.*?)```'
+            for m in re.finditer(wt_pattern, response_text, re.DOTALL):
+                name = m.group(1).strip()
+                
+                if _is_hardcoded(name):
+                    continue
+                
+                if _is_valid_filename(name):
+                    matched_files[name] = m.group(2).strip()
 
-        for block in re.finditer(block_pattern, response_text, re.DOTALL):
-            # Grab a chunk of text before the code block to look for a filename
-            start = max(0, block.start() - 300)
-            preceding = response_text[start : block.start()]
-            filename = _extract_filename(preceding, base)
-             
-            if _is_hardcoded(filename):
-                continue
-            
-            if filename and filename not in matched_files:
-                matched_files[filename] = block.group(1).strip()
+
+            # Filename label + fenced code block
+            if not matched_files:
+                block_pattern = r'```[\w]*\n(.*?)```'
+
+                for block in re.finditer(block_pattern, response_text, re.DOTALL):
+                    # Grab a chunk of text before the code block to look for a filename
+                    start = max(0, block.start() - 300)
+                    preceding = response_text[start : block.start()]
+                    filename = _extract_filename(preceding, base)
+                    
+                    if _is_hardcoded(filename):
+                        continue
+                    
+                    if filename and filename not in matched_files:
+                        matched_files[filename] = block.group(1).strip()
 
     if not matched_files:
         print("ℹ️ No file updates in this message.")
@@ -85,7 +103,7 @@ def apply_changes(response_text: str, part: str, base=Path("memory")):
     updates_applied = 0
 
     for filename, content in matched_files.items():
-        filepath = base / filename
+        filepath = part / filename
 
         try:
             filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -155,8 +173,8 @@ def _extract_filename(preceding_text: str, base: Path) -> Optional[str]:
     return None
 
 def _is_hardcoded(filename):
-    if filename in ["rule.md", "rules.md"]:
-        print("⚠️ Changes can't be made in rules.md.")
+    if filename in _load_immutables():
+        print(f"⚠️ Changes can't be made in hardcoded file '{filename}.'")
         return True
         
     return False
