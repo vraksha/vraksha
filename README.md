@@ -1,10 +1,10 @@
 # Vraksha - Assistant That Never Forgets
 
 <p align="center">
-  <img src="https://github.com/vraksha/vraksha/blob/main/assets/Vraksha.png" alt="Vraksha Logo" style="width: 60%;">
+  <img src="https://github.com/vraksha/vraksha/blob/main/assets/agent.png" alt="Vraksha Logo" style="width: 60%;">
 </p>
 
-A **personal** AI agent that remembers.
+> An agent that remembers so you can focus on creating.
 
 Most AI assistants forget everything the moment a session ends. **Vraksha** doesn't.
 It reads from and writes to three structured files before and after every session —
