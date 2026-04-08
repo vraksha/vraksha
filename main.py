@@ -2,10 +2,9 @@ import io
 import sys
 
 from src.agent.loop import run_agent # For general Agent
-
-# from src.slop_detector.loop import run_detector # For AI slop detector 
-
-from src.utils.prepare_for_llm import PrepareForLLM
+# from src.skills.slop_detector.loop import run_detector # For AI slop detector 
+# from src.utils.base_loop import run_loop # For orchestrator
+from src.skills.slop_detector.services.prepare_for_llm import PrepareForLLM
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -16,3 +15,4 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 if __name__ == "__main__":
     run_agent()
+

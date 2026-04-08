@@ -1,0 +1,42 @@
+anthropic:
+  orchestrator:
+    model: claude-opus-4-6
+    task: "Central brain, tool routing, memory decisions, multi-step planning"
+  code:
+    model: claude-sonnet-4-6
+    task: "Code generation, refactoring, debugging"
+  slop_detector:
+    model: claude-haiku-4-5
+    task: "AI slop detection via commit forensics and code pattern analysis"
+  research:
+    model: claude-haiku-4-5
+    task: "Web research, summarization"
+  planner:
+    model: claude-opus-4-6
+    task: "Architecture decisions, roadmaps, long-form reasoning"
+  memory:
+    model: claude-haiku-4-5
+    task: "Memory compression, pruning, summarizing old entries"
+
+
+openai:
+  orchestrator:
+    model: gpt-5.4-pro
+    task: "Central brain, tool routing, memory decisions, multi-step planning"
+  code:
+    model: gpt-5.3-codex
+    task: "Code generation, refactoring, debugging"
+  slop_detector:
+    model: gpt-5.4-mini
+    task: "AI slop detection via commit forensics and code pattern analysis"
+  research:
+    model: gpt-5.4-mini
+    task: "Web research, summarization"
+  planner:
+    model: gpt-5.4-thinking
+    task: "Architecture decisions, roadmaps, long-form reasoning"
+  memory:
+    model: gpt-5.4-nano
+    task: "Memory compression, pruning, summarizing old entries"
+
+  

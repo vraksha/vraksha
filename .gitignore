@@ -1,16 +1,17 @@
 .env.local
 
 memory/agent/*
-memory/slop_detector/*
+memory/skills/slop_detector/*
 
 !memory/agent/.gitkeep
-!memory/slop_detector/.gitkeep
+!memory/skills/slop_detector/.gitkeep
 
 memory/rules.md
 
 __pycache__/
 
 draft.md
+*.txt
 
 venv/
 
