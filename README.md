@@ -1,97 +1,74 @@
-# Vraksha - Assistant That Never Forgets
+# Vraksha: The Agent That Never Forgets
 
 <p align="center">
-  <img src="https://github.com/vraksha/vraksha/blob/main/assets/agent.png" alt="Vraksha Logo" style="width: 60%;">
+  <img src="https://github.com/vraksha/vraksha/blob/main/assets/agent.png" alt="Vraksha Logo" style="width: 50%;">
 </p>
 
-> An agent that remembers so you can focus on creating.
+> **"Vraksha remembers, so you can focus on creating."**
 
-Most AI assistants forget everything the moment a session ends. **Vraksha** doesn't.
-It reads from and writes to three structured files before and after every session —
-so it always knows who you are, what you're building, and what was decided last time.
-You never re-explain your context. It already knows.
+Most AI assistants are ephemeral; they forget everything the moment a session ends. **Vraksha** is built on a local-first, persistent memory architecture. It reads and writes to structured files before and after every session, ensuring your context, project state, and hardcoded rules are never lost.
 
-## What It Does
+No re-explaining. No context drift. Just deep work.
 
-- Reads your rules, memory, and project state at the start of every session
-- Answers questions, helps you think, assists with your work
-- Updates its own memory at the end of every session — compressed, clean, no noise
-- Tracks your projects and decisions across time
-- Follows rules that are hardcoded and untouchable — even by itself
+---
 
-- Distinguishes between AI slop vs Human written content.
+## Core Capabilities
 
-## How Memory Works
+- **Persistent Context:** Automatically synchronizes session summaries, project milestones, and user preferences.
+- **Local-First Architecture:** Your intelligence lives in your files (`.yaml`, `.md`). No cloud silos.
+- **Slop Detection:** Integrated forensic logic to distinguish between human-authored code and AI-generated content.
+- **Immutable Governance:** Follows a `rules.md` file that is hardcoded and untouchable—even by the agent itself.
+- **Explainable Logic:** Prioritizes high-fidelity reasoning over generic chat responses.
 
-Vraksha maintains three files:
+## The Three-Tier Memory System
 
-- `rules.md` — your permanent rules and preferences. Vraksha can never modify this.
-- `memory.yaml` — session context. Vraksha rewrites this every session with a compressed summary.
-- `projects.yaml` — project state. Vraksha updates this when something meaningful changes.
+Vraksha maintains state across three specialized files in the `/memory` directory:
 
-Nothing is stored in the cloud. Everything lives in your own files.
+1.  **`rules.md`** — Permanent governance and persona constraints. (Read-only for the agent).
+2.  **`memory.yaml`** — Compressed session context and long-term user facts.
+3.  **`projects.yaml`** — Active project tracking, architectural decisions, and technical debt.
 
-> Note: It supports API keys for both Anthropic and OpenAI, but prioritizes Claude over ChatGPT if both are provided.
+---
 
-### Quick Start
-1.  Populate `.env.local` with your API keys:
-    - ANTHROPIC_API_KEY=...
-    - OPENAI_API_KEY=...
-    - GITHUB_TOKEN=...  (for slop detector)
-2.  Define your persona in `memory/rules.md`.
-3.  Run `python main.py` and start building.
+## Quick Start
 
-> "Vraksha remembers so you can focus on creating."
+### 1. Environment Setup
+Populate `.env.local` with your provider keys. Vraksha is optimized for **Claude (Anthropic)** but supports OpenAI as a secondary fallback.
 
-## Structure
-
+```bash
+ANTHROPIC_API_KEY=your_key_here
+OPENAI_API_KEY=your_key_here
+GITHUB_TOKEN=your_token_here # Required for Slop Detector
 ```
-e:\Agent
-├── .env.example
-├── .env.local
-├── README.md
-├── draft.md
-├── main.py
-├── requirements.txt
-├── tree_output.txt
-│
-├── assets
-│   ├── logo.png
-│   └── Vraksha.png
-│
-├── memory
-│   ├── .gitkeep
-│   ├── memory.yaml
-│   ├── projects.yaml
-│   └── rules.md
-│
-├── secret
-│   ├── image.png
-│   └── Vraksha..png
-│
-└── src
-    ├── __init__.py
-    │
-    ├── agent
-    │   ├── __init__.py
-    │   ├── llm.py
-    │   ├── loop.py
-    │   └── prompts.py
-    │
-    ├── slop_detector
-    │   ├── __init__.py
-    │   ├── detector.py
-    │   └── prompts.py
-    │
-    └── utils
-        ├── __init__.py
-        ├── api_keys.py
-        ├── changes.py
-        ├── client.py
-        ├── fetch_commits.py
-        ├── fetch_content.py
-        ├── github_token.py
-        ├── read_memory.py
-        └── url_converter.py
 
+### 2. Configure Persona
+
+- Define your engineering standards and personal preferences in `memory/rules.md`.
+
+### 3. Initialize
+
+```bash
+pip install -r requirements.txt
+python main.py
 ```
+
+-----
+
+## Repository Structure
+
+```text
+.
+├── main.py                # Agent Entry Point
+├── memory/                # Persistent State (Rules, Memory, Projects)
+├── src/
+│   ├── agent/             # Core LLM Orchestration & Prompt Engineering
+│   ├── slop_detector/     # Forensic Code Analysis Module
+│   └── utils/             # Memory I/O and GitHub Integration
+└── assets/                # Brand Identity & Documentation Assets
+```
+
+-----
+
+<!-- **Official Site:** [agentvraksha.com](https://www.google.com/search?q=https://agentvraksha.com)   -->
+
+<!-- ``` -->
