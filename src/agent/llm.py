@@ -1,15 +1,30 @@
+# Necessary packages
 from rich.console import Console
 
+# Custom modules
 from src.agent.prompts import Prompts
-from src.utils.read_memory import extract_content_for_agent
+from src.utils.read_memory import extract_content
 from src.utils.changes import apply_changes
 
-from src.slop_detector.llm import detector_agent
-from src.utils.user_input import UserInput
+from src.skills.slop_detector.services.user_input import UserInput
 
+# Skills registrations
 from src.utils.client import client_info
+from src.skills.registry import registry
+
+# Shared llm caller
+from src.utils.call_llm import call_llm
+
+# Sub Agent skills
+from src.skills.slop_detector.llm import detector_agent
+
 
 console = Console()
+
+
+PART = "agent"           # For memory path
+ROLE = "orchestrator"    # For its function and client info
+
 
 _SYSTEM_PROMPT = None
 
@@ -19,18 +34,23 @@ def _system():
         return _SYSTEM_PROMPT
 
     # Getting the project, memory and rules
-    rules = extract_content_for_agent(filename="rules")
-    project = extract_content_for_agent(filename="projects")
-    memory = extract_content_for_agent(filename="memory")
+    rules = extract_content(filename="rules", part=PART)
+    project = extract_content(filename="projects", part=PART)
+    memory = extract_content(filename="memory", part=PART)
+
+
+    skills_available = "\n".join(
+        f"- {skill.name}: {skill.description}\n{skill.instruction}"
+        for skill in registry.skills
+    )
 
     _SYSTEM_PROMPT = f"""
             {Prompts.system()}
 
-            "If the user provides a GitHub URL, do NOT try to analyze it yourself.
-            Instead, call the slop_detector tool. Use the output of that tool to provide your final answer."
-
-            "When explaining a SLOP_DETECTOR report, you MUST conclude your response by asking the user to verify the verdict.
-            Use a specific trigger phrase like 'VERIFICATION_REQUIRED' so the system knows to prompt for feedback."
+            ## Available Skills
+            You have access to the following specialist skills.
+            When the input matches a skill, it will be automatically routed — you just explain the result.
+            {skills_available}
 
            <file_list>
             <file name="rules.md">{rules}</file>
@@ -44,64 +64,35 @@ def _system():
 
 
 def agent(messages: list[dict]) -> str:
-
     current_prompt = messages[-1]["content"] if messages else ""
         
     data = UserInput(raw_text=current_prompt)
 
-    # Slop detector agent is called here because general agent doesn't know about code/repo analysis
-    # Response given by detector agent is added to messages, hence the agent gets the response
-    if data.url:
-        console.log("[yellow]Specialist Hand-off initiated.[/yellow]")
-        
-        detector_verdict = detector_agent(messages)
+    # We check if there are any skills available to handle current request
+    skill = registry.match(data)
+
+    if skill:
+        console.log(f"[yellow]Skill matched: {skill.name}[/yellow]")
+        detector_verdict = skill.run(messages)
 
         messages[-1]["content"] = (
             f"USER ORIGINAL REQUEST: {current_prompt}\n\n" # Keep their context!
-            f"--- INTERNAL FORENSIC REPORT ---\n{detector_verdict}\n"
+            f"--- INTERNAL FORENSIC REPORT BY '{skill.name.upper()}'---\n{detector_verdict}\n"
                 "--- INSTRUCTION ---\n"
                 "Explain the report above to the user based on their original request."
             )
 
         console.log(f"[bold magenta]DEBUG Specialist Output:[/bold magenta] {detector_verdict[:100]}...")
 
-    llm = client_info()
+    # SHARED LLM CALLER
+    response = call_llm(
+        role=ROLE,
+        system=_system(),
+        messages=messages,
+        max_tokens=1500
+    )
 
-    client = llm["client"]
-    client_name = llm["name"]
-    model = llm["model"]
+    apply_changes(response, part=PART)
 
-    # Calling the llm
-    if client_name == "anthropic":
-        response = client.messages.create(
-            model=model,
-            max_tokens=1500,
-            system=_system(),
-            messages=messages,
-        )
-
-        response_text = response.content[0].text
-
-    elif client_name == "openai":
-        response = client.responses.create(
-            model=model,
-            max_output_tokens=1500,
-            input=[
-                {
-                "role": "system",
-                "content": _system()
-                },
-                # conversation
-                * messages
-            ]
-        )
-
-        response_text = response.output_text
-
-    else:
-        raise Exception("Couldn't get reponse from client")
-
-    apply_changes(response_text, part="agent")
-
-    return response_text
+    return response
 
