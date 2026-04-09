@@ -72,3 +72,33 @@ python main.py
 <!-- **Official Site:** [agentvraksha.com](https://www.google.com/search?q=https://agentvraksha.com)   -->
 
 <!-- ``` -->
+
+
+<div align="center">
+  <h3>Vraksha System Architecture & Live Demos</h3>
+  
+  <table border="0">
+    <tr>
+      <td>
+        <p align="center"><b>01. Introduction/thinking</b></p>
+        <img src="https://github.com/vraksha/vraksha/raw/main/assets/previews/introduction.png" width="400" style="border-radius: 6px; border: 1px solid #30363d;">
+      </td>
+      <td>
+        <p align="center"><b>02. Recent Context</b></p>
+        <img src="https://github.com/vraksha/vraksha/raw/main/assets/previews/recent.png" width="400" style="border-radius: 6px; border: 1px solid #30363d;">
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <p align="center"><b>03. Detection Report</b></p>
+        <img src="https://github.com/vraksha/vraksha/raw/main/assets/previews/detection-report.png" width="400" style="border-radius: 6px; border: 1px solid #30363d;">
+      </td>
+      <td>
+        <p align="center"><b>04. Detection Feedback</b></p>
+        <img src="https://github.com/vraksha/vraksha/raw/main/assets/previews/detector-result-peter.png" width="400" style="border-radius: 6px; border: 1px solid #30363d;">
+      </td>
+    </tr>
+  </table>
+  
+  <p><i>Vraksha v0.9.5-alpha: Previews</i></p>
+</div>
