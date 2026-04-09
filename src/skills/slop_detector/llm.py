@@ -67,7 +67,7 @@ def detector_agent(messages: list[dict]) -> str:
         commit_data=commits
     )
 
-    history = messages[:-1]
+    history = messages[:-1] # Exclude the last message
 
     full_user_content = "\n\n".join(filter(None, [user_prompt]))
 
