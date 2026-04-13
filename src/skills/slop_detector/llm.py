@@ -19,7 +19,6 @@ def _forensic():
     if _SYSTEM_PROMPT:
         return _SYSTEM_PROMPT
 
-    rules   = extract_content(filename="rules", part=PART)
     project = extract_content(filename="projects", part=PART)
     memory  = extract_content(filename="memory", part=PART)
 
@@ -44,7 +43,6 @@ def _forensic():
 
         ## Context
         <file_list>
-        <file name="rules.md">{rules}</file>
         <file name="projects.yaml">{project}</file>
         <file name="memory.yaml">{memory}</file>
         </file_list>
