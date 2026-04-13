@@ -69,7 +69,7 @@ python main.py
 
 -----
 
-**Official Site:** [agentvraksha.com](https://www.google.com/search?q=https://agentvraksha.com)  
+**Official Site:** [agentvraksha.com](https://agentvraksha.com)  
 
 
 <div align="center">
