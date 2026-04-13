@@ -1,16 +1,27 @@
-from pathlib import Path
-
 from src.skills.base import Skill
 from src.skills.slop_detector.llm import detector_agent
 
 class SlopDetectorSkill(Skill):
     name = "slop_detector"
-    description = "Analyzes GitHub repositories for AI-generated code forensics."
-    instruction = Path(__file__).parent.joinpath("SKILL.md").read_text()
+    description = "Analyzes GitHub repos for AI-generated code forensics."
+    instructions = ""
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "url": {"type": "string", "description": "GitHub repo URL to analyze"},
+            "user_prompt": {"type": "string", "description": "Original user message"}
+        },
+        "required": ["url"]
+    }
 
-    def triggered_by(self, data) -> bool:
-        return bool(data.url)
+    def run(self, tool_input: dict) -> str:
+        repo_url = tool_input.get("url", "")
+        user_prompt = tool_input.get("user_prompt", "analyze this repo")
+        
+        messages = [{"role": "user", "content": f"{user_prompt}\n{repo_url}"}]
 
-    def run(self, messages: list[dict]) -> str:
         return detector_agent(messages)
+
+def get_skill() -> Skill:
+    return SlopDetectorSkill()
 
