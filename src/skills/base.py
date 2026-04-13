@@ -2,16 +2,14 @@ from abc import ABC, abstractmethod
 
 class Skill(ABC):
     name: str
-    description: str        # Injected this into orchestrator system prompt
-    instruction: str        # Loaded from SKILL.md
+    description: str
+    instructions: str = ""
+    input_schema: dict = {
+        "type": "object",
+        "properties": {}
+    }
 
     @abstractmethod
-    def triggered_by(self, data) -> bool:
-        """Does this skill handle this input?"""
+    def run(self, tool_input: dict) -> str:
         pass
 
-    @abstractmethod
-    def run(self, messages: list[dict]) -> str:
-        """Execute and return result string."""
-        pass
-        
