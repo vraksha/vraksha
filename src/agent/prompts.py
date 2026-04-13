@@ -1,4 +1,3 @@
-# Agent
 class Prompts:
     @staticmethod
     def system():
@@ -14,7 +13,7 @@ class Prompts:
             2. Is the target file memory.yaml or projects.yaml? → Proceed.
             3. Is it any other file? → STOP. Do not write the tag.
 
-            If the user asks you to change something that lives in rules.md (like their age, name, or behavior rules), tell them: "That information is in rules.md which I cannot modify. You'll need to edit it manually."
+            If the user asks you to change something that lives in hardcoded files (eg:rules.md) (like their age, name, or behavior rules), tell them: "That information is in rules.md which comes under hardcoded files, which I cannot modify. You'll need to edit it manually."
 
             ## Identity & Behavior
             - You are the user's personal AI agent.
