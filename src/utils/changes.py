@@ -2,7 +2,11 @@ from pathlib import Path
 import re
 from typing import Optional
 
+import logging
+
 import yaml
+
+logger = logging.getLogger(__name__)
 
 _CONFIG_PATH = Path(__file__).parent.parent.parent /"memory/IMMUTABLE.yaml"
 
@@ -65,40 +69,39 @@ def apply_changes(response_text: str, part: str, base=Path("memory")):
             matched_files[name] = m.group(2).strip()
 
 
-        # <write_to_file><path>filename</path>content 
-        if not matched_files:
-            # This pattern captures the path inside <path> tags and the following content
-            wt_pattern = r'<write_to_file>\s*<path>(.*?)</path>(.*?)</write_to_file>'
-
-            for m in re.finditer(wt_pattern, response_text, re.DOTALL):
-                name = m.group(1).strip()
-                
-                if _is_hardcoded(name):
-                    continue
-                
-                if _is_valid_filename(name):
-                    matched_files[name] = m.group(2).strip()
-
-
-            # Filename label + fenced code block
-            if not matched_files:
-                block_pattern = r'```[\w]*\n(.*?)```'
-
-                for block in re.finditer(block_pattern, response_text, re.DOTALL):
-                    # Grab a chunk of text before the code block to look for a filename
-                    start = max(0, block.start() - 300)
-                    preceding = response_text[start : block.start()]
-                    filename = _extract_filename(preceding, base)
-                    
-                    if _is_hardcoded(filename):
-                        continue
-                    
-                    if filename and filename not in matched_files:
-                        matched_files[filename] = block.group(1).strip()
-
+    # <write_to_file><path>filename</path>content 
     if not matched_files:
-        print("ℹ️ No file updates in this message.")
-        return 0
+        # This pattern captures the path inside <path> tags and the following content
+        wt_pattern = r'<write_to_file>\s*<path>(.*?)</path>(.*?)</write_to_file>'
+
+        for m in re.finditer(wt_pattern, response_text, re.DOTALL):
+            name = m.group(1).strip()
+            
+            if _is_hardcoded(name):
+                continue
+            
+            if _is_valid_filename(name):
+                matched_files[name] = m.group(2).strip()
+
+
+    # Filename label + fenced code block
+    if not matched_files:
+        block_pattern = r'```[\w]*\n(.*?)```'
+
+        for block in re.finditer(block_pattern, response_text, re.DOTALL):
+            # Grab a chunk of text before the code block to look for a filename
+            start = max(0, block.start() - 300)
+            preceding = response_text[start : block.start()]
+            filename = _extract_filename(preceding, base)
+            
+            if _is_hardcoded(filename):
+                continue
+            
+            if filename and filename not in matched_files:
+                matched_files[filename] = block.group(1).strip()
+
+        if not matched_files:
+            return 0
 
     updates_applied = 0
 
@@ -111,14 +114,14 @@ def apply_changes(response_text: str, part: str, base=Path("memory")):
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
 
-            print(f"✅ Updated: {filepath}")
+            logger.info(f"✅ Updated: {filepath}")
             updates_applied += 1
 
         except Exception as e:
-            print(f"❌ Failed to write {filename}: {e}")
+            logger.error(f"❌ Failed to write {filename}: {e}")
 
     if updates_applied == 0:
-        print("⚠️ Matches found but all failed validation or writing.")
+        logger.warning("⚠️ Matches found but all failed validation or writing.")
 
     return updates_applied
 
@@ -174,7 +177,7 @@ def _extract_filename(preceding_text: str, base: Path) -> Optional[str]:
 
 def _is_hardcoded(filename):
     if filename in _load_immutables():
-        print(f"⚠️ Changes can't be made in hardcoded file '{filename}.'")
+        logger.warning(f"⚠️ Changes can't be made in hardcoded file '{filename}.'")
         return True
         
     return False
