@@ -1,22 +1,42 @@
-# Sub agent skills
-from src.skills.slop_detector.skill import SlopDetectorSkill
+import logging
+
+logger = logging.getLogger(__name__)
 
 
+from src.skills.registrar import register_skills
+from src.skills.base import Skill
 
 class SkillRegistry:
     def __init__(self):
-        self.skills = [
-            SlopDetectorSkill(),
-            # We can now just add new skills here
+        self.skills: list[Skill] = []
+        self._load()
+
+    def _load(self):
+        for entry in register_skills():
+            module = entry["module"]
+            instruction = entry["instruction"]
+
+            if not hasattr(module, "get_skill"):
+                logger.error(f"⚠️ Skipping {entry['name']} — no get_skill() found")
+                continue
+
+            skill: Skill = module.get_skill()
+            skill.instructions = instruction
+            self.skills.append(skill)
+            logger.info(f"✅ Loaded skill: {skill.name}")
+
+    def as_tools(self) -> list[dict]:
+        return [
+            {
+                "name": skill.name,
+                "description": skill.description,
+                "input_schema": skill.input_schema
+            }
+            for skill in self.skills
         ]
 
-    def match(self, data) -> "Skill | None":
-        for skill in self.skills:
-
-            if skill.triggered_by(data):
-                return skill
-
-        return None
+    def get(self, name: str) -> "Skill | None":
+        return next((s for s in self.skills if s.name == name), None)
 
 registry = SkillRegistry()
 
