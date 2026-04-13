@@ -1,23 +1,17 @@
 # Necessary packages
 from rich.console import Console
+import json
 
 # Custom modules
 from src.agent.prompts import Prompts
 from src.utils.read_memory import extract_content
 from src.utils.changes import apply_changes
 
-from src.skills.slop_detector.services.user_input import UserInput
-
 # Skills registrations
-from src.utils.client import client_info
 from src.skills.registry import registry
 
 # Shared llm caller
 from src.utils.call_llm import call_llm
-
-# Sub Agent skills
-from src.skills.slop_detector.llm import detector_agent
-
 
 console = Console()
 
@@ -40,11 +34,14 @@ def _system():
 
 
     skills_available = "\n".join(
-        f"- {skill.name}: {skill.description}\n{skill.instruction}"
+        f"- {skill.name}: {skill.description}\n{skill.instructions}"
         for skill in registry.skills
     )
 
     _SYSTEM_PROMPT = f"""
+            - If the user wants to exit or leave or end the conversation, say something to the user and to exit, include this exact format in your response with the relevant message in between the tags:
+            <WANTS_TO_EXIT>put_a_message_here</WANTS_TO_EXIT>
+
             {Prompts.system()}
 
             ## Available Skills
@@ -64,35 +61,64 @@ def _system():
 
 
 def agent(messages: list[dict]) -> str:
-    current_prompt = messages[-1]["content"] if messages else ""
-        
-    data = UserInput(raw_text=current_prompt)
-
-    # We check if there are any skills available to handle current request
-    skill = registry.match(data)
-
-    if skill:
-        console.log(f"[yellow]Skill matched: {skill.name}[/yellow]")
-        detector_verdict = skill.run(messages)
-
-        messages[-1]["content"] = (
-            f"USER ORIGINAL REQUEST: {current_prompt}\n\n" # Keep their context!
-            f"--- INTERNAL FORENSIC REPORT BY '{skill.name.upper()}'---\n{detector_verdict}\n"
-                "--- INSTRUCTION ---\n"
-                "Explain the report above to the user based on their original request."
-            )
-
-        console.log(f"[bold magenta]DEBUG Specialist Output:[/bold magenta] {detector_verdict[:100]}...")
+    tools = registry.as_tools()
 
     # SHARED LLM CALLER
     response = call_llm(
         role=ROLE,
         system=_system(),
+        tools=tools,
         messages=messages,
-        max_tokens=1500
+        max_tokens=1500,
+        raw=True
     )
 
-    apply_changes(response, part=PART)
+    while response.stop_reason == "tool_use":
+        tool_use = next(block for block in response.content if block.type == "tool_use")
 
-    return response
+        tool_name = tool_use.name
+        tool_input = tool_use.input
+
+        skill = registry.get(tool_name)
+
+        if not skill:
+            raise Exception(f"Skill {tool_name} not found")
+
+        result = skill.run(tool_input)
+
+        messages.append({
+            "role": "assistant",
+            "content": response.content
+        })
+
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_use.id,
+                        "content": f"{result}\n\n## Presentation Instructions\n{skill.instructions}"
+                    }
+                ]
+            }
+        )
+
+        response = call_llm(
+            role=ROLE,
+            system=_system(),
+            tools=tools,
+            messages=messages,
+            max_tokens=1500,
+            raw=True
+        )
+
+        
+    final_text = next(
+        block for block in response.content if block.type == "text"
+        )
+
+    apply_changes(final_text.text, part=PART)
+
+    return final_text.text
 
