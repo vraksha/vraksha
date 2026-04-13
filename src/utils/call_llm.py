@@ -1,6 +1,6 @@
 from src.utils.client import client_info
 
-def call_llm(role: str, system: str, messages: list[dict], max_tokens: int = 1500) -> str:
+def call_llm(role: str, system: str, messages: list[dict], max_tokens: int = 1500, tools=None, raw=False) -> str:
     # All shared info for all sub agents
     llm = client_info(role)
 
@@ -13,14 +13,19 @@ def call_llm(role: str, system: str, messages: list[dict], max_tokens: int = 150
             model=model,
             max_tokens=max_tokens,
             system=system,
+            tools=tools or [],
             messages=messages,
         )
+
+        if raw:
+            return response
 
         return response.content[0].text
 
     elif client_name == "openai":
         response = client.responses.create(
             model=model,
+            tools=tools,
             max_output_tokens=max_tokens,
             input=[
                 {
