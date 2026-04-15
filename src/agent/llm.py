@@ -7,6 +7,8 @@ from src.agent.prompts import Prompts
 from src.utils.read_memory import extract_content
 from src.utils.changes import apply_changes
 
+from src.utils.command_tool import command_tool
+
 # Skills registrations
 from src.skills.registry import registry
 
@@ -44,10 +46,16 @@ def _system():
 
             {Prompts.system()}
 
-            ## Available Skills
-            You have access to the following specialist skills.
-            When the input matches a skill, it will be automatically routed — you just explain the result.
+            ## Your Tools
+            You have tools available. When a user request requires a tool, you MUST call it — do not say you can't.
+
+            ### Skills (Sub-agents)
+            These are specialist tools you can call:
             {skills_available}
+
+            ### Command Execution
+            You have the `run_command` tool. Use it to execute any shell command in a secure Docker sandbox.
+            The sandbox auto-destroys after each command. Call this tool whenever the user asks to run code, check system info, or do anything that requires a shell.
 
            <file_list>
             <file name="rules.md">{rules}</file>
@@ -61,7 +69,10 @@ def _system():
 
 
 def agent(messages: list[dict]) -> str:
-    tools = registry.as_tools()
+    skills = registry.as_tools()
+    cmd_tool = command_tool.run_command_tool
+
+    tools = [*skills, cmd_tool]
 
     # SHARED LLM CALLER
     response = call_llm(
@@ -79,12 +90,22 @@ def agent(messages: list[dict]) -> str:
         tool_name = tool_use.name
         tool_input = tool_use.input
 
-        skill = registry.get(tool_name)
+        result = ""
 
-        if not skill:
-            raise Exception(f"Skill {tool_name} not found")
+        if tool_name == "run_command":
+            result = command_tool.handle_tool_call(tool_name, tool_input)
 
-        result = skill.run(tool_input)
+            instructions = cmd_tool["description"]
+
+        else:
+            skill = registry.get(tool_name)
+
+            if not skill:
+                raise Exception(f"Skill {tool_name} not found")
+
+            else:
+                result = skill.run(tool_input)
+                instructions = getattr(skill, "instructions")
 
         messages.append({
             "role": "assistant",
@@ -98,7 +119,7 @@ def agent(messages: list[dict]) -> str:
                     {
                         "type": "tool_result",
                         "tool_use_id": tool_use.id,
-                        "content": f"{result}\n\n## Presentation Instructions\n{skill.instructions}"
+                        "content": f"{result}\n\n## Presentation Instructions\n{instructions}"
                     }
                 ]
             }
