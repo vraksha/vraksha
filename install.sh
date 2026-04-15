@@ -29,5 +29,9 @@ if [ ! -f "$INSTALL_DIR/.env.local" ]; then
     echo "    nano $INSTALL_DIR/.env.local"
 fi
 
+echo "Building Vraksha Docker image (this may take a minute)..."
+docker build -t vraksha "$INSTALL_DIR"
+
+
 echo ""
 echo "Vraksha installed! Run 'vraksha' from anywhere."

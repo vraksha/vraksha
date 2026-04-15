@@ -10,6 +10,8 @@ __pycache__/
 
 draft.md
 *.txt
+analysis_results.md
+analysis_results.txt
 
 venv/
 

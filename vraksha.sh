@@ -13,10 +13,9 @@ if [ "$SCRIPT_PATH" != "$INSTALL_PATH" ] && [ ! -L "$INSTALL_PATH" ]; then
     echo ""
 fi
 
-# Look for env file
 for env_file in .env.local .env.example .env .env.production .env.development; do
     if [ -f "$SCRIPT_DIR/$env_file" ]; then
-        docker run -it --env-file "$SCRIPT_DIR/$env_file" vraksha
+        docker run -it -v /var/run/docker.sock:/var/run/docker.sock -v "$SCRIPT_DIR/memory:/app/memory" --env-file "$SCRIPT_DIR/$env_file" vraksha
         exit 0
     fi
 done
