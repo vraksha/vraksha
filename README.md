@@ -32,7 +32,15 @@ Vraksha maintains state across three specialized files in the `/memory` director
 
 ## Quick Start
 
-### 1. Environment Setup
+### 1. Initialize
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vraksha/vraksha/main/install.sh | bash
+```
+> Then just run `vraksha` to run it
+
+
+### 2. Environment Setup
 Populate `.env.local` with your provider keys. Vraksha is optimized for **Claude (Anthropic)** but supports OpenAI as a secondary fallback.
 
 ```bash
@@ -41,16 +49,9 @@ OPENAI_API_KEY=your_key_here
 GITHUB_TOKEN=your_token_here # Required for Slop Detector
 ```
 
-### 2. Configure Persona
+### 3. Configure Persona
 
 - Define your engineering standards and personal preferences in `memory/rules.md`.
-
-### 3. Initialize
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vraksha/vraksha/main/install.sh | bash
-```
-> Then just run `vraksha` to run it
 
 -----
 
