@@ -48,9 +48,9 @@ GITHUB_TOKEN=your_token_here # Required for Slop Detector
 ### 3. Initialize
 
 ```bash
-pip install -r requirements.txt
-python main.py
+curl -fsSL https://raw.githubusercontent.com/vraksha/vraksha/main/install.sh | bash
 ```
+> Then just run `vraksha` to run it
 
 -----
 

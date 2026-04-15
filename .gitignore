@@ -1,5 +1,3 @@
-.env.local
-
 memory/agent/*
 memory/skills/slop_detector/*
 
@@ -20,3 +18,9 @@ secret/
 agentvraksha/
 
 docs/
+
+.env.local
+.env
+.env.production
+.env.development
+
