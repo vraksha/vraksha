@@ -21,6 +21,8 @@ agentvraksha/
 
 docs/
 
+example_agent.py
+
 .env.local
 .env
 .env.production

@@ -37,7 +37,7 @@ Vraksha maintains state across three specialized files in the `/memory` director
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vraksha/vraksha/main/install.sh | bash
 ```
-> Then just run `vraksha` to run it
+> Then, just run `vraksha` to run it
 
 
 ### 2. Environment Setup
@@ -100,4 +100,6 @@ GITHUB_TOKEN=your_token_here # Required for Slop Detector
   </table>
   
   <p><i>Vraksha v0.9.5-alpha: Previews</i></p>
+  <br>
+  <p><i>Note: The above previews are from the v0.9.5-alpha version of Vraksha. The current version is not released yet.</i></p>
 </div>
