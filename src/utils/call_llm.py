@@ -1,7 +1,16 @@
 from src.utils.client import client_info
 
-def call_llm(role: str, system: str, messages: list[dict], max_tokens: int = 1500, tools=None, raw=False) -> str:
-    # All shared info for all sub agents
+def call_llm(
+    role: str,
+    system: str,
+    messages: list[dict],
+    max_tokens: int = 1500,
+    tools=None,
+    raw: bool = False
+) -> str:
+    """
+    All shared info for all sub agents
+    """
     llm = client_info(role)
 
     client = llm["client"]

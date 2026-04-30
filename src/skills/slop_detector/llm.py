@@ -11,13 +11,7 @@ from src.utils.call_llm import call_llm
 PART = "slop_detector" # For memory path
 ROLE = "slop_detector" # For its function and client info
 
-
-_SYSTEM_PROMPT = None
-
 def _forensic():
-    global _SYSTEM_PROMPT
-    if _SYSTEM_PROMPT:
-        return _SYSTEM_PROMPT
 
     project = extract_content(filename="projects", part=PART)
     memory  = extract_content(filename="memory", part=PART)
@@ -48,6 +42,7 @@ def _forensic():
         </file_list>
         """
     return _SYSTEM_PROMPT
+
 
 def detector_agent(messages: list[dict]) -> str:
 

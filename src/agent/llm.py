@@ -21,13 +21,11 @@ console = Console()
 PART = "agent"           # For memory path
 ROLE = "orchestrator"    # For its function and client info
 
-
-_SYSTEM_PROMPT = None
-
 def _system():
-    global _SYSTEM_PROMPT
-    if _SYSTEM_PROMPT:
-        return _SYSTEM_PROMPT
+    # Getting the project, memory and rules
+    rules = extract_content(filename="rules", part=PART)
+    project = extract_content(filename="projects", part=PART)
+    memory = extract_content(filename="memory", part=PART)
 
     # Getting the project, memory and rules
     rules = extract_content(filename="rules", part=PART)

@@ -9,6 +9,7 @@ memory/rules.md
 __pycache__/
 
 draft.md
+vraksha_audit.md
 *.txt
 analysis_results.md
 analysis_results.txt
