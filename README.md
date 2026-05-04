@@ -1,7 +1,7 @@
-# Vraksha: The Agent That Never Forgets
+# Vraksha: A Friend Who Always Remembers You
 
 <p align="center">
-  <img src="https://github.com/vraksha/vraksha/blob/main/assets/logo.png" alt="Vraksha Logo" style="width: 50%;">
+  <img src="https://github.com/vraksha/vraksha/blob/main/assets/vraksha.png" alt="Vraksha Logo" style="width: 30%;">
 </p>
 
 > **"Vraksha remembers, so you can focus on creating."**
