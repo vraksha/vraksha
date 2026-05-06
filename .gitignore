@@ -1,8 +1,14 @@
 memory/agent/*
 memory/skills/slop_detector/*
+memory/kuzu/*
+memory/qdrant/*
+memory/wiki/*
 
 !memory/agent/.gitkeep
 !memory/skills/slop_detector/.gitkeep
+!memory/kuzu/.gitkeep
+!memory/qdrant/.gitkeep
+!memory/wiki/.gitkeep
 
 memory/rules.md
 
@@ -15,15 +21,16 @@ analysis_results.md
 analysis_results.txt
 
 venv/
+.venv/
 
 secret/
 
 agentvraksha/
 
 docs/
-
+architecture/
 example_agent.py
-
+test.py
 .env.local
 .env
 .env.production

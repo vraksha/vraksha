@@ -1,0 +1,10 @@
+services:
+  vraksha:
+    build: .
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./memory:/app/memory
+      - ./src:/app/src
+      - ./main.py:/app/main.py
+    env_file:
+      - .env.local
