@@ -1,13 +1,13 @@
 import os
+import kuzu
 
 _client = None
 
 def get_client():
     global _client
     if _client is None:
-        # TODO: Initialize local Kùzu database pointing to the root memory directory
-        # Example: db = kuzu.Database('memory/kuzu'); _client = kuzu.Connection(db)
-        pass
+        db = kuzu.Database("memory/kuzu")
+        _client = kuzu.Connection(db)
     return _client
 
 async def add_episode(content: str, session_id: str) -> None:

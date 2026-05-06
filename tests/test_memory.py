@@ -7,6 +7,7 @@ def test_wiki():
     content = load_wiki()
     print(f"\nWiki loaded: {len(content)} chars\n")
     assert isinstance(content, str)
+    print(f"\nWiki content:\n{content}\n")
     print("\nWiki OK\n")
 
 def test_semantic_store():
