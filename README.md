@@ -14,19 +14,19 @@ No re-explaining. No context drift. Just deep work.
 
 ## Core Capabilities
 
-- **Persistent Context:** Automatically synchronizes session summaries, project milestones, and user preferences.
-- **Local-First Architecture:** Your intelligence lives in your files (`.yaml`, `.md`). No cloud silos.
+- **Persistent Context:** Automatically synchronizes session summaries, project milestones, and user preferences into a local knowledge graph and vector store.
+- **Local-First Architecture:** Your intelligence lives entirely on your machine. Zero external API calls for database storage or embeddings. No cloud silos.
 - **Slop Detection:** Integrated forensic logic to distinguish between human-authored code and AI-generated content.
-- **Immutable Governance:** Follows a `rules.md` file that is hardcoded and untouchable—even by the agent itself.
+- **Immutable Governance:** Follows a `rules.md` file that is hardcoded and untouchable, even by the agent itself.
 - **Explainable Logic:** Prioritizes high-fidelity reasoning over generic chat responses.
 
 ## The Three-Tier Memory System
 
-Vraksha maintains state across three specialized files in the `/memory` directory:
+Vraksha maintains state across three specialized local databases in the `/memory` directory, optimized for sub-millisecond retrieval at any scale:
 
-1.  **`rules.md`** — Permanent governance and persona constraints. (Read-only for the agent).
-2.  **`memory.yaml`** — Compressed session context and long-term user facts.
-3.  **`projects.yaml`** — Active project tracking, architectural decisions, and technical debt.
+1. **Procedural Memory (Wiki)**: Markdown files for permanent governance, rules, and system-level truths.
+2. **Semantic Store (Qdrant + fastembed)**: Embedded local vector search for unstructured preferences and behavioral context.
+3. **Graph Store (Kùzu)**: An embedded, in-process knowledge graph for temporal and relational facts (what was true when, and how entities connect).
 
 ---
 
@@ -60,11 +60,12 @@ GITHUB_TOKEN=your_token_here # Required for Slop Detector
 ```text
 .
 ├── main.py                # Agent Entry Point
-├── memory/                # Persistent State (Rules, Memory, Projects)
+├── memory/                # Persistent State (Wiki, Qdrant, Kuzu)
 ├── src/
 │   ├── agent/             # Core LLM Orchestration & Prompt Engineering
+│   ├── memory/            # Architecture Logic (semantic_store, graph_store, wiki)
 │   ├── slop_detector/     # Forensic Code Analysis Module
-│   └── utils/             # Memory I/O and GitHub Integration
+│   └── utils/             # GitHub Integration & Utilities
 └── assets/                # Brand Identity & Documentation Assets
 ```
 
