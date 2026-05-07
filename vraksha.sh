@@ -157,9 +157,8 @@ fi
 # Check if a rebuild is actually needed
 REBUILD_NEEDED=$FORCE_BUILD
 if [ "$REBUILD_NEEDED" = false ]; then
-    # Get the image ID for the vraksha service
-    IMAGE_ID=$(docker compose images -q vraksha 2>/dev/null)
-    if [ -z "$IMAGE_ID" ]; then
+    # Check if the project image exists in docker
+    if ! docker image inspect vraksha-runtime:latest &>/dev/null; then
         REBUILD_NEEDED=true
     fi
 fi
@@ -208,17 +207,16 @@ if [ "$REBUILD_NEEDED" = true ]; then
         exit 1
     fi
     rm -f "$BUILD_LOG"
-    printf "\n  ${G}${GL_CHECK}${NC}  ${B}${T}vraksha soul initialized${NC}\n"
-else
-    printf "  ${G}${GL_CHECK}${NC}  ${B}${T}runtime environment ready${NC}  ${M}(using existing image)${NC}\n"
-    printf "  ${D}${GL_DOT}${NC}  ${M}tip: use ${NC}${T}--build${NC}${M} to force a refresh${NC}\n"
+    # Auto-clean old image versions to prevent disk bloat
+    docker image prune -f &>/dev/null
+    printf "\n  ${G}${GL_CHECK}${NC}  ${B}${T}vraksha soul initialized${NC}  ${M}(old layers cleaned)${NC}\n"
+    # Silent ready state
+    :
 fi
 
-# (Build status already reported above)
-printf "  ${A}${GL_ARROW}${NC}  ${M}launching agent interface${NC}\n"
-
 # subtle handoff line into the python TUI
+printf "  ${A}${GL_ARROW}${NC}  ${M}launching agent interface${NC}\n"
 hr
 
-# == 3. launch agent ===========================================
+# 3. launch agent
 docker compose run --rm --remove-orphans vraksha 2> >(grep -vE "Creating|Created|Starting|Started|Network" >&2)

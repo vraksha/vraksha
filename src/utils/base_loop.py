@@ -12,6 +12,9 @@ from rich import box
 
 from src.utils.find_name import agent_name, user_name
 from src.utils.exit_check import check_exit
+from prompt_toolkit import PromptSession
+from prompt_toolkit.formatted_text import ANSI
+from prompt_toolkit.history import InMemoryHistory
 
 
 THEME = Theme({
@@ -46,6 +49,9 @@ G = {
     "diamond": "◇",
     "soft":    "╴",
 }
+
+# Persistent session for history and better line editing
+session = PromptSession(history=InMemoryHistory())
 
 def _box_width() -> int:
     return min(console.width - 4, 96)
@@ -173,9 +179,21 @@ def _ask_prompt(input_prompt: str) -> str:
     bottom = f"[border_lit]╰{'╴' * 24}[/border_lit]"
 
     console.print(Padding(top, (1, 0, 0, 2)))
-    raw = console.input(
-        f"  [border_lit]│[/border_lit]  [bold accent_lit]{G['user']}[/bold accent_lit]  "
-    )
+    
+    # We use rich to render the prompt decorations to ANSI for prompt_toolkit
+    prompt_text = f"  [border_lit]│[/border_lit]  [bold accent_lit]{G['user']}[/bold accent_lit]  "
+    
+    # Simple trick to get ANSI codes out of rich
+    with console.capture() as capture:
+        console.print(prompt_text, end="")
+    ansi_prompt = ANSI(capture.get())
+
+    try:
+        raw = session.prompt(ansi_prompt)
+    except (KeyboardInterrupt, EOFError):
+        # Handle Ctrl+C or Ctrl+D at the prompt gracefully
+        return "exit"
+
     console.print(Padding(bottom, (0, 0, 0, 2)))
     return raw.strip()
 
@@ -305,16 +323,19 @@ def run_loop(
         ):
             response = _call_llm_only(llm_fn, messages)
 
+        # Record the response before checking for exit, 
+        # so any tool-use results are captured in the history.
+        messages.append({
+            "role": "assistant",
+            "content": response
+        })
+
         should_exit, goodbye = check_exit(response)
 
         if should_exit:
             _run_memory_sync(llm_fn, messages, goodbye)
             break
 
-        messages.append({
-            "role": "assistant",
-            "content": response
-            })
         _print_response(agent, response)
 
 

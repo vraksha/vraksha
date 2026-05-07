@@ -18,25 +18,22 @@ anthropic:
     model: claude-haiku-4-5
     task: "Memory compression, pruning, summarizing old entries"
 
-
 openai:
   orchestrator:
-    model: gpt-5.4-pro
+    model: gpt-4o
     task: "Central brain, tool routing, memory decisions, multi-step planning"
   code:
-    model: gpt-5.3-codex
+    model: gpt-4o
     task: "Code generation, refactoring, debugging"
   slop_detector:
-    model: gpt-5.4-mini
+    model: gpt-4o-mini
     task: "AI slop detection via commit forensics and code pattern analysis"
   research:
-    model: gpt-5.4-mini
+    model: gpt-4o-mini
     task: "Web research, summarization"
   planner:
-    model: gpt-5.4-thinking
+    model: gpt-4o
     task: "Architecture decisions, roadmaps, long-form reasoning"
   memory:
-    model: gpt-5.4-nano
+    model: gpt-4o-mini
     task: "Memory compression, pruning, summarizing old entries"
-
-  

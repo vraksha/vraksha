@@ -44,6 +44,8 @@ def _system():
     rules   = extract_content(filename="rules",    role=MEMORY_ROLE)
     project = extract_content(filename="projects", role=MEMORY_ROLE)
     memory  = extract_content(filename="memory",   role=MEMORY_ROLE)
+    journal = extract_content(filename="journal",  role=MEMORY_ROLE)
+    soul    = extract_content(filename="soul",     role=None) # Look in memory/ root
 
     skills_available = "\n".join(
         f"- {skill.name}: {skill.description}\n{skill.instructions}"
@@ -51,6 +53,18 @@ def _system():
     )
 
     _SYSTEM_PROMPT = f"""
+            <identity>
+            {soul}
+            </identity>
+
+            <journal>
+            {journal}
+            </journal>
+
+            ## The Living Journal Protocol
+            You maintain a living record of your user in 'memory/agent/journal.md'.
+            If you learn something new about the user's preferences, identity, or how they want you to behave, update this file IMMEDIATELY using the 'write_file' tool. Do not wait for the end of the session. This file is your "brain" for the user's persona—keep it accurate and updated in real-time.
+
             - If the user wants to exit or leave or end the conversation, say something to the user and to exit, include this exact format in your response with the relevant message in between the tags:
             <WANTS_TO_EXIT>put_a_message_here</WANTS_TO_EXIT>
 
@@ -87,8 +101,10 @@ def agent(messages: list[dict]) -> str:
     cmd_tool = command_tool.run_command_tool
     read_tool = file_tools.read_file_tool
     write_tool = file_tools.write_file_tool
+    create_tool = file_tools.create_file_tool
+    remove_tool = file_tools.remove_file_tool
 
-    tools = [*skills, cmd_tool, read_tool, write_tool]
+    tools = [*skills, cmd_tool, read_tool, write_tool, create_tool, remove_tool]
 
     # SHARED LLM CALLER
     response = call_llm(
@@ -101,54 +117,74 @@ def agent(messages: list[dict]) -> str:
     )
 
     while response.stop_reason == "tool_use":
-        tool_use = next(block for block in response.content if block.type == "tool_use")
-
-        tool_name  = tool_use.name
-        tool_input = tool_use.input
-
-        result = ""
-        instructions = ""
-
-        if tool_name == "run_command":
-            result = command_tool.handle_tool_call(tool_name, tool_input)
-            instructions = cmd_tool["description"]
-
-        elif tool_name in ("read_file", "write_file"):
-            result = file_tools.handle_tool_call(tool_name, tool_input)#
-            
-            instructions = (
-                read_tool["description"]
-                if tool_name == "read_file"
-                else write_tool["description"]
-            )
-
-        else:
-            skill = registry.get(tool_name)
-
-            if not skill:
-                raise Exception(f"Skill {tool_name} not found")
-
-            result = skill.run(tool_input)
-            instructions = getattr(skill, "instructions")
-
+        # 1. Store the assistant turn once
         messages.append({
             "role": "assistant",
             "content": response.content
         })
 
-        messages.append(
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": tool_use.id,
-                        "content": f"{result}\n\n## Presentation Instructions\n{instructions}"
-                    }
-                ]
-            }
-        )
+        # 2. Gather all tool results for this turn
+        tool_results = []
+        for block in response.content:
+            if block.type != "tool_use":
+                continue
+                
+            tool_use = block
+            tool_name  = tool_use.name
+            tool_input = tool_use.input
 
+            result = ""
+            instructions = ""
+
+            if tool_name == "run_command":
+                result = command_tool.handle_tool_call(tool_name, tool_input)
+                instructions = cmd_tool["description"]
+
+            elif tool_name in ("read_file", "write_file", "create_file", "remove_file"):
+                p = tool_input.get("path", "...")
+                if tool_name == "read_file":   console.log(f"[muted]  • reading [accent]{p}[/accent][/muted]")
+                if tool_name == "write_file":  console.log(f"[muted]  • writing [accent]{p}[/accent][/muted]")
+                if tool_name == "create_file": console.log(f"[muted]  • creating [accent]{p}[/accent][/muted]")
+                if tool_name == "remove_file": console.log(f"[muted]  • removing [accent]{p}[/accent][/muted]")
+                result = file_tools.handle_tool_call(tool_name, tool_input)
+                
+                if tool_name == "read_file":
+                    instructions = read_tool["description"]
+
+                elif tool_name == "write_file":
+                    instructions = write_tool["description"]
+
+                elif tool_name == "remove_file":
+                    instructions = remove_tool["description"]
+
+                elif tool_name == "create_file":
+                    instructions = create_tool["description"]
+
+                else:
+                    instructions = remove_tool["description"]
+
+            else:
+                skill = registry.get(tool_name)
+                
+                if not skill:
+                    raise Exception(f"Skill {tool_name} not found")
+
+                result = skill.run(tool_input)
+                instructions = getattr(skill, "instructions")
+            
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": tool_use.id,
+                "content": str(result)
+            })
+
+        # 3. Append all tool results as a single user message (OpenAI requirement)
+        messages.append({
+            "role": "user",
+            "content": tool_results
+        })
+
+        # 4. Call LLM again with full context
         response = call_llm(
             model_part=MODEL_PART,
             system=_system(),
@@ -168,4 +204,8 @@ def agent(messages: list[dict]) -> str:
 
     after_changes = apply_changes(final_block.text, role=MEMORY_ROLE)
 
-    return after_changes
+    # Ensure we return the string response, not the integer count of updates
+    if isinstance(after_changes, str):
+        return after_changes
+
+    return final_block.text

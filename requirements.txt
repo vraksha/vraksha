@@ -9,3 +9,4 @@ fastembed
 qdrant-client
 kuzu
 google-genai
+prompt-toolkit

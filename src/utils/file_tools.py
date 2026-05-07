@@ -6,8 +6,9 @@ Two tools, modelled after `command_tool`:
     File path  → returns full text content.
     Directory  → returns a tree listing (via `get_tree`).
 
-- write_file(path, content)
-    Writes `content` to a file. Creates parent dirs as needed.
+- write_file(path, content, mode='overwrite')
+    Writes `content` to a file. Supports 'overwrite' and 'append'.
+    Creates parent dirs as needed.
     Refuses paths that resolve outside the project root.
     Refuses paths listed in memory/IMMUTABLE.yaml.
 
@@ -93,12 +94,11 @@ class FileTools:
         self.write_file_tool = {
             "name": "write_file",
             "description": (
-                "Write `content` to a file inside the project. Overwrites "
-                "existing files. Creates parent directories as needed. "
-                "REFUSES paths outside the project root. REFUSES paths listed "
-                "in memory/IMMUTABLE.yaml — those are agent-protected and "
-                "must be edited by the user manually. Returns a short status "
-                "string starting with OK / BLOCKED / ERROR."
+                "Write `content` to a file inside the project. Supports 'overwrite' "
+                "(default) and 'append' modes. Creates the file and parent directories "
+                "as needed. REFUSES paths outside the project root or listed in "
+                "memory/IMMUTABLE.yaml. Returns a status string starting with "
+                "OK / BLOCKED / ERROR."
             ),
             "input_schema": {
                 "type": "object",
@@ -113,8 +113,61 @@ class FileTools:
                         "type": "string",
                         "description": "Full file contents to write.",
                     },
+                    "mode": {
+                        "type": "string",
+                        "description": "Whether to 'overwrite' the file or 'append' to it. Default is 'overwrite'.",
+                        "enum": ["overwrite", "append"],
+                        "default": "overwrite",
+                    },
                 },
                 "required": ["path", "content"],
+            },
+        }
+
+        self.create_file_tool = {
+            "name": "create_file",
+            "description": (
+                "Create a NEW file with `content`. Fails if the file already exists. "
+                "Creates parent directories as needed. Use this for creating "
+                "new modules, components, or documentation. REFUSES paths outside "
+                "the project root."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path, relative to the project root.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Initial file contents.",
+                    },
+                },
+                "required": ["path", "content"],
+            },
+        }
+
+        self.remove_file_tool = {
+            "name": "remove_file",
+            "description": (
+                "Remove/delete a file inside the project. "
+                "REFUSES paths outside the project root. REFUSES paths listed "
+                "in memory/IMMUTABLE.yaml — those are agent-protected and "
+                "must be removed by the user manually. Returns a short status "
+                "string starting with OK / BLOCKED / ERROR."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "File path, relative to the project root."
+                        ),
+                    },
+                },
+                "required": ["path"],
             },
         }
 
@@ -127,7 +180,17 @@ class FileTools:
             )
 
         if tool_name == "write_file":
-            return self._write(tool_input["path"], tool_input["content"])
+            return self._write(
+                tool_input["path"],
+                tool_input["content"],
+                tool_input.get("mode", "overwrite")
+            )
+
+        if tool_name == "create_file":
+            return self._create(tool_input["path"], tool_input["content"])
+
+        if tool_name == "remove_file":
+            return self._remove(tool_input["path"])
 
         raise ValueError(f"FileTools: unknown tool '{tool_name}'")
 
@@ -157,7 +220,7 @@ class FileTools:
         return f"FILE: {path}\n{content}"
 
     # write
-    def _write(self, path: str, content: str) -> str:
+    def _write(self, path: str, content: str, mode: str = "overwrite") -> str:
         try:
             target = _resolve_within_project(path)
 
@@ -176,13 +239,63 @@ class FileTools:
 
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding="utf-8")
+            
+            # Use "w" for overwrite, "a" for append. Both create if missing.
+            file_mode = "w" if mode == "overwrite" else "a"
+            
+            with open(target, file_mode, encoding="utf-8") as f:
+                f.write(content)
             
         except Exception as e:
             return f"ERROR: failed to write '{path}': {e}"
 
-        logger.info(f"✅ wrote {len(content)} chars → {target}")
-        return f"OK: wrote {len(content)} chars to {path}"
+        action = "overwrote" if mode == "overwrite" else "appended to"
+        return f"OK: {action} {len(content)} chars to {path}"
 
+    # create
+    def _create(self, path: str, content: str) -> str:
+        try:
+            target = _resolve_within_project(path)
+
+        except ValueError as e:
+            return f"ERROR: {e}"
+
+        if target.exists():
+            return f"ERROR: file '{path}' already exists. Use 'write_file' to modify it."
+
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+
+        except Exception as e:
+            return f"ERROR: failed to create '{path}': {e}"
+
+        return f"OK: created file {path} ({len(content)} chars)"
+
+    # remove/delete
+    def _remove(self, path:str) -> str:
+        try:
+            target = _resolve_within_project(path)
+
+        except ValueError as e:
+            return f"ERROR: {e}"
+
+        if is_immutable(target):
+            return (
+                f"BLOCKED: '{path}' is protected by memory/IMMUTABLE.yaml "
+                f"and cannot be modified by the agent. Tell the user to "
+                f"edit it manually."
+            )
+
+        if target.exists() and target.is_dir():
+            return f"ERROR: '{path}' is a directory, not a file"
+
+        try:
+            target.unlink(missing_ok=True)
+        
+        except Exception as e:
+            return f"ERROR: failed to delete '{path}': {e}"
+
+        return f"OK: removed {path}"
 
 file_tools = FileTools()

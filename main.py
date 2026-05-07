@@ -14,6 +14,7 @@ logging.basicConfig(
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+# AI Agent Note: This script can be modified through the AI agent's abilities.
+
 if __name__ == "__main__":
     run_agent()
-

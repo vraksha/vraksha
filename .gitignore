@@ -11,6 +11,7 @@ memory/wiki/*
 !memory/wiki/.gitkeep
 
 memory/rules.md
+memory/soul.md
 
 __pycache__/
 
