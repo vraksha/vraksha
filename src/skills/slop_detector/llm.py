@@ -7,7 +7,7 @@ from src.skills.slop_detector.services.prepare_for_llm import PrepareForLLM
 
 from src.utils.call_llm import call_llm
 
-
+"""Note that part for memory path is not used now"""
 PART = "slop_detector" # For memory path
 ROLE = "slop_detector" # For its function and client info
 
@@ -81,7 +81,11 @@ def detector_agent(messages: list[dict]) -> str:
         max_tokens=1500
     )
 
-    apply_changes(response, part=ROLE)
+    """
+        Apply changes for sub agents is removed because they will be designed to just do the task
+        Orchestrator will handle everything else
+    """
+    # apply_changes(response, part=ROLE)
 
     return response
 

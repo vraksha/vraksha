@@ -8,3 +8,5 @@ services:
       - ./main.py:/app/main.py
     env_file:
       - .env.local
+    stdin_open: true
+    tty: true

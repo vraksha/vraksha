@@ -1,7 +1,4 @@
-## This folder contains 2 files:
+# Note:
 
-1. memory.yaml (works as a persistent memory for your slop detector):
-    - important content from the conversation you have with the slop detector
-2. projects.yaml:
-    - information of your recent projects
-    
+This skill/ directory will no more be used because the memory control is
+moved towards orchestrator only

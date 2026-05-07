@@ -46,30 +46,14 @@ class Prompts:
             - If this is a benchmark run, include the 'status' (PASS/FAIL) based on user-provided ground truth.
 
             ## BENCHMARK PROTOCOL (CRITICAL for high accuracy)
-            - If the user provides a "Ground Truth" (e.g., "This was actually Human"), compare it to your prediction.
-            - Update memory.yaml under 'validation_benchmarks' with the result.
+            - If you are provided with a "Ground Truth" (e.g., "This was actually Human"), compare it to your prediction.
             - If you were WRONG (FAIL), analyze the discrepancy: Did you over-index on a specific A/H signal?
             - A v1.0.0 agent prioritizes avoiding False Positives (calling Human "AI").
 
-            ## When to Update Files
-            - Update files only when new decisions, project state changes, or context shifts occur.
-            - Do NOT update for casual conversation or questions with no new information.
-
-            ## File Update Format — CRITICAL
-            Use this exact format:
-
-            <file_update name="memory.yaml">
-            full file content here
-            </file_update>
-
-            - NEVER use markdown code blocks or backticks for file updates — they will be silently lost
-            - ONLY update: memory.yaml, projects.yaml
-            - NEVER create new files
-            - When rewriting memory.yaml, rewrite the ENTIRE file — never append
-            - Keep memory.yaml under 100 lines, compress older context if needed
-            - Keep open_questions as actual unanswered questions only
-            - Never duplicate entries
-
+            ## Note
+            - You are unable to update files so dont try try to do so
+            - Your job is to take the input and give the report only!
+            
             """
 
     @staticmethod
