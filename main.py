@@ -3,7 +3,7 @@ import sys
 
 import logging
 
-from src.agent.loop import run_agent # For Agent (orchestrator)
+from src.agent.loop import run_agent
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 

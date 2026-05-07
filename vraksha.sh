@@ -8,7 +8,7 @@ INSTALL_PATH="/usr/local/bin/vraksha"
 SCRIPT_PATH="$(realpath "$0")"
 SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
 
-# ── palette ──────────────────────────────────────────────────────────────────
+# palette
 A='\033[38;2;0;212;170m'   # accent · teal
 A2='\033[38;2;0;143;114m'  # accent · soft
 M='\033[38;5;244m'         # muted
@@ -21,16 +21,34 @@ Y='\033[38;5;215m'         # warn
 G='\033[38;5;121m'         # success
 NC='\033[0m'
 
-# ── glyphs ───────────────────────────────────────────────────────────────────
+# glyphs 
 GL_LOGO="▲"
 GL_DOT="·"
 GL_CHECK="✓"
 GL_ARROW="›"
 GL_DIAMOND="◆"
 
-# ── state ────────────────────────────────────────────────────────────────────
+# state
 STATUS_FILE=$(mktemp)
 CURRENT_PHASE="resolving"
+FORCE_BUILD=false
+
+# arguments
+for arg in "$@"; do
+    case $arg in
+        -b|--build) FORCE_BUILD=true ;;
+        -h|--help)
+            printf "\n  ${A}${B}${GL_LOGO}${NC}  ${B}${T}vraksha${NC}   ${M}CLI help${NC}\n"
+            printf "  ${D}────────────────────────────────────────────────────────────────${NC}\n"
+            printf "  ${T}Usage:${NC} vraksha ${D}[options]${NC}\n\n"
+            printf "  ${A}${B}Options:${NC}\n"
+            printf "    ${T}-b, --build${NC}    ${M}Force rebuild of the runtime environment${NC}\n"
+            printf "    ${T}-h, --help${NC}     ${M}Show this help message${NC}\n"
+            printf "\n"
+            exit 0
+            ;;
+    esac
+done
 
 cleanup() {
     rm -f "$STATUS_FILE"
@@ -39,7 +57,7 @@ cleanup() {
 trap cleanup EXIT
 trap "exit 1" SIGINT SIGTERM
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# helpers
 term_width() { tput cols 2>/dev/null || echo 80; }
 
 hr() {
@@ -58,7 +76,7 @@ print_header() {
     printf "${NC}\n\n"
 }
 
-# ── global spinner ───────────────────────────────────────────────────────────
+# global spinner 
 start_global_spinner() {
     (
         local frames=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
@@ -104,7 +122,7 @@ stop_global_spinner() {
     fi
 }
 
-# ── 1. workspace check ──────────────────────────────────────────────────────
+# == 1. workspace check ==================================================
 cd "$SCRIPT_DIR"
 
 print_header
@@ -134,57 +152,73 @@ if [ "$ENV_FOUND" = false ]; then
     fi
 fi
 
-# ── 2. build & initialize ────────────────────────────────────────────────────
-BUILD_LOG=$(mktemp)
+# == 2. build & initialize ==============================================
 
-printf "  ${A}${GL_DIAMOND}${NC}  ${B}${T}initializing runtime${NC}  ${D}${GL_DOT}${NC}  ${M}docker compose build${NC}\n\n"
-
-echo "preparing|" > "$STATUS_FILE"
-start_global_spinner
-
-docker compose build --progress plain 2>&1 | while IFS= read -r line; do
-    [[ -z "${line// }" ]] && continue
-    [[ "$line" == "#"* ]] && [[ "$line" != *"#"* ]] && continue
-
-    NEW_PHASE=""
-    case "$line" in
-        *"load build definition"*) NEW_PHASE="loading build definitions" ;;
-        *"load metadata"*)         NEW_PHASE="fetching container metadata" ;;
-        *"install"*)               NEW_PHASE="installing dependencies" ;;
-        *"exporting"*)             NEW_PHASE="exporting image layers" ;;
-        *"naming to"*)             NEW_PHASE="finalizing containers" ;;
-    esac
-
-    if [ -n "$NEW_PHASE" ] && [ "$NEW_PHASE" != "$CURRENT_PHASE" ]; then
-        if [ "$CURRENT_PHASE" != "resolving" ] && [ "$CURRENT_PHASE" != "preparing" ]; then
-            printf "\r\033[K  ${G}${GL_CHECK}${NC}  ${B}${T}%s${NC}\n" "$CURRENT_PHASE"
-        fi
-        CURRENT_PHASE="$NEW_PHASE"
+# Check if a rebuild is actually needed
+REBUILD_NEEDED=$FORCE_BUILD
+if [ "$REBUILD_NEEDED" = false ]; then
+    # Get the image ID for the vraksha service
+    IMAGE_ID=$(docker compose images -q vraksha 2>/dev/null)
+    if [ -z "$IMAGE_ID" ]; then
+        REBUILD_NEEDED=true
     fi
-
-    DETAIL=$(echo "$line" | sed -E 's/^#[0-9]+ //; s/^[0-9]+.[0-9]+s //' | xargs)
-
-    echo "$CURRENT_PHASE|$DETAIL" > "$STATUS_FILE"
-    echo "$line" >> "$BUILD_LOG"
-done
-
-BUILD_STATUS=${PIPESTATUS[0]}
-
-stop_global_spinner "$CURRENT_PHASE"
-
-if [ $BUILD_STATUS -ne 0 ]; then
-    printf "\n  ${R}✗${NC}  ${B}failed to build vraksha soul${NC}\n\n"
-    cat "$BUILD_LOG"
-    rm -f "$BUILD_LOG"
-    exit 1
 fi
-rm -f "$BUILD_LOG"
 
-printf "\n  ${G}${GL_CHECK}${NC}  ${B}${T}vraksha soul initialized${NC}\n"
+if [ "$REBUILD_NEEDED" = true ]; then
+    BUILD_LOG=$(mktemp)
+    printf "  ${A}${GL_DIAMOND}${NC}  ${B}${T}initializing runtime${NC}  ${D}${GL_DOT}${NC}  ${M}docker compose build${NC}\n\n"
+
+    echo "preparing|" > "$STATUS_FILE"
+    start_global_spinner
+
+    docker compose build --progress plain 2>&1 | while IFS= read -r line; do
+        [[ -z "${line// }" ]] && continue
+        [[ "$line" == "#"* ]] && [[ "$line" != *"#"* ]] && continue
+
+        NEW_PHASE=""
+        case "$line" in
+            *"load build definition"*) NEW_PHASE="loading build definitions" ;;
+            *"load metadata"*)         NEW_PHASE="fetching container metadata" ;;
+            *"install"*)               NEW_PHASE="installing dependencies" ;;
+            *"exporting"*)             NEW_PHASE="exporting image layers" ;;
+            *"naming to"*)             NEW_PHASE="finalizing containers" ;;
+        esac
+
+        if [ -n "$NEW_PHASE" ] && [ "$NEW_PHASE" != "$CURRENT_PHASE" ]; then
+            if [ "$CURRENT_PHASE" != "resolving" ] && [ "$CURRENT_PHASE" != "preparing" ]; then
+                printf "\r\033[K  ${G}${GL_CHECK}${NC}  ${B}${T}%s${NC}\n" "$CURRENT_PHASE"
+            fi
+            CURRENT_PHASE="$NEW_PHASE"
+        fi
+
+        DETAIL=$(echo "$line" | sed -E 's/^#[0-9]+ //; s/^[0-9]+.[0-9]+s //' | xargs)
+
+        echo "$CURRENT_PHASE|$DETAIL" > "$STATUS_FILE"
+        echo "$line" >> "$BUILD_LOG"
+    done
+
+    BUILD_STATUS=${PIPESTATUS[0]}
+
+    stop_global_spinner "$CURRENT_PHASE"
+
+    if [ $BUILD_STATUS -ne 0 ]; then
+        printf "\n  ${R}✗${NC}  ${B}failed to build vraksha soul${NC}\n\n"
+        cat "$BUILD_LOG"
+        rm -f "$BUILD_LOG"
+        exit 1
+    fi
+    rm -f "$BUILD_LOG"
+    printf "\n  ${G}${GL_CHECK}${NC}  ${B}${T}vraksha soul initialized${NC}\n"
+else
+    printf "  ${G}${GL_CHECK}${NC}  ${B}${T}runtime environment ready${NC}  ${M}(using existing image)${NC}\n"
+    printf "  ${D}${GL_DOT}${NC}  ${M}tip: use ${NC}${T}--build${NC}${M} to force a refresh${NC}\n"
+fi
+
+# (Build status already reported above)
 printf "  ${A}${GL_ARROW}${NC}  ${M}launching agent interface${NC}\n"
 
 # subtle handoff line into the python TUI
 hr
 
-# ── 3. launch agent ──────────────────────────────────────────────────────────
+# == 3. launch agent ===========================================
 docker compose run --rm --remove-orphans vraksha 2> >(grep -vE "Creating|Created|Starting|Started|Network" >&2)

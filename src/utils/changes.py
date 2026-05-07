@@ -4,25 +4,13 @@ from typing import Optional
 
 import logging
 
-import yaml
+from get_root import root
+from src.utils.immutables import is_immutable
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_PATH = Path(__file__).parent.parent.parent /"memory/IMMUTABLE.yaml"
 
-_immutables_cache = None
-
-def _load_immutables():
-    global _immutables_cache
-    
-    if _immutables_cache is None:
-        with open(_CONFIG_PATH) as f:
-            _immutables_cache = yaml.safe_load(f)["IMMUTABLE"]
-            
-    return _immutables_cache
-
-
-def apply_changes(response_text: str, part: str, base=Path("memory")):
+def apply_changes(response_text: str, role: str, base=Path("memory")):
     """
     Parses LLM response for file update instructions and applies them
     to the target directory specified by `base`.
@@ -34,27 +22,32 @@ def apply_changes(response_text: str, part: str, base=Path("memory")):
 
     Args:
         response_text: The raw LLM response text.
-        part: Target skill directory inside base
+        role: Target skill directory inside base
         base: Target base directory where changes are applied. Defaults to "memory".
 
     Returns:
         Number of files successfully updated.
     """
 
+    # NOTE: arbitrary-path writes are handled by the
+    # `write_file` tool in src/utils/file_tools.py, not by this parser.
+    # `apply_changes` stays scoped to memory writes only.
+
     base = Path(base)
     base.mkdir(parents=True, exist_ok=True)
 
-    if part != "agent":
-        part = Path(f"skills/{part}")
+    if role != "agent":
+        # role = Path(f"skills/{role}")
+        raise ValueError("Sub agents/skills don't have memory")
 
-    part = Path(base)/part
-    part.mkdir(parents=True, exist_ok=True)
+    role = Path(base)/role
+    role.mkdir(parents=True, exist_ok=True)
 
     if not response_text:
         return None
 
     matched_files = {}
-
+    detected_block = []
 
     # XML-like <file_update> tags 
     xml_pattern = r'<file_update\s+name="([^"]+?)">(.*?)</file_update>'
@@ -62,26 +55,27 @@ def apply_changes(response_text: str, part: str, base=Path("memory")):
     for m in re.finditer(xml_pattern, response_text, re.DOTALL):
         name = m.group(1).strip()
 
-        if _is_hardcoded(name):
+        if _is_hardcoded(role, name):
             continue
 
         if _is_valid_filename(name):
             matched_files[name] = m.group(2).strip()
+            detected_block = m.group().strip()
 
-
-    # <write_to_file><path>filename</path>content 
+    # <write_to_file><path>filename</path>content
     if not matched_files:
         # This pattern captures the path inside <path> tags and the following content
         wt_pattern = r'<write_to_file>\s*<path>(.*?)</path>(.*?)</write_to_file>'
 
         for m in re.finditer(wt_pattern, response_text, re.DOTALL):
             name = m.group(1).strip()
-            
-            if _is_hardcoded(name):
+
+            if _is_hardcoded(role, name):
                 continue
-            
+
             if _is_valid_filename(name):
                 matched_files[name] = m.group(2).strip()
+                detected_block = m.group().strip()
 
 
     # Filename label + fenced code block
@@ -93,26 +87,28 @@ def apply_changes(response_text: str, part: str, base=Path("memory")):
             start = max(0, block.start() - 300)
             preceding = response_text[start : block.start()]
             filename = _extract_filename(preceding, base)
-            
-            if _is_hardcoded(filename):
+
+            if _is_hardcoded(role, filename):
                 continue
             
             if filename and filename not in matched_files:
                 matched_files[filename] = block.group(1).strip()
+                detected_block = block.group().strip()
 
         if not matched_files:
             return 0
 
     updates_applied = 0
 
-    for filename, content in matched_files.items():
-        filepath = part / filename
+    for (filename, content), block_to_remove in zip(matched_files.items(), detected_block):
+        filepath = role / filename
 
         try:
             filepath.parent.mkdir(parents=True, exist_ok=True)
 
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
+                return response_text.replace(detected_block, "").strip()
 
             logger.info(f"✅ Updated: {filepath}")
             updates_applied += 1
@@ -175,9 +171,23 @@ def _extract_filename(preceding_text: str, base: Path) -> Optional[str]:
 
     return None
 
-def _is_hardcoded(filename):
-    if filename in _load_immutables():
-        logger.warning(f"⚠️ Changes can't be made in hardcoded file '{filename}.'")
+def _is_hardcoded(role: Path, filename: Optional[str]) -> bool:
+    """Reject writes to immutable files.
+
+    `role` is the resolved memory directory (e.g. memory/agent) and
+    `filename` is the candidate target inside it. We resolve the full
+    project-relative path and defer the decision to the shared
+    `is_immutable` rule set in memory/IMMUTABLE.yaml.
+    """
+    if not filename:
+        return False
+
+    full = role / filename
+    if not full.is_absolute():
+        full = root.project / full
+
+    if is_immutable(full):
+        logger.warning(f"⚠️ Changes can't be made in protected file '{filename}'.")
         return True
         
     return False

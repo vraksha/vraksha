@@ -1,6 +1,6 @@
 anthropic:
   orchestrator:
-    model: claude-opus-4-6
+    model: claude-sonnet-4-6
     task: "Central brain, tool routing, memory decisions, multi-step planning"
   code:
     model: claude-sonnet-4-6
@@ -12,7 +12,7 @@ anthropic:
     model: claude-haiku-4-5
     task: "Web research, summarization"
   planner:
-    model: claude-opus-4-6
+    model: claude-sonnet-4-6
     task: "Architecture decisions, roadmaps, long-form reasoning"
   memory:
     model: claude-haiku-4-5

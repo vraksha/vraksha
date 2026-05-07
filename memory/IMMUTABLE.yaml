@@ -1,0 +1,16 @@
+# Vraksha — paths the agent must NEVER write to.
+#
+# Match rules:
+#   - Entries containing "/" are project-root-relative paths
+#     and must match exactly (e.g. "memory/agent/rules.md").
+#   - Entries without "/" are bare filenames and match by name
+#     anywhere in the tree (e.g. ".env" blocks any .env file).
+#
+# Reads are unrestricted; this list governs writes only.
+
+immutable:
+  - memory/agent/rules.md
+  - memory/IMMUTABLE.yaml
+  - .env
+  - .env.local
+  - .env.example

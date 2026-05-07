@@ -25,10 +25,10 @@ venv/
 
 secret/
 
-agentvraksha/
+.agentvraksha/
 
 docs/
-architecture/
+.architecture/
 example_agent.py
 test.py
 .env.local

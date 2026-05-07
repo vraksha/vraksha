@@ -12,41 +12,41 @@ from rich import box
 
 from src.utils.find_name import agent_name, user_name
 from src.utils.exit_check import check_exit
-# conscious agent
 
-# ── palette ────────────────────────────────────────────────────────────────
+
 THEME = Theme({
-    "accent":      "#00d4aa",
-    "accent_soft": "#008f72",
-    "user_tag":    "#7c8cf8",
-    "ai_tag":      "#00d4aa",
-    "warn":        "#f5a623",
-    "success":     "#2ecc71",
-    "error":       "#e74c3c",
-    "text":        "#e8e8f0",
-    "muted":       "#6b6b80",
-    "dim":         "#4a4a5a",
-    "border":      "#2c2c38",
-    "border_lit":  "#3d3d4f",
+    "accent":      "#d4a574",   # amber: her eyes (resting)
+    "accent_lit":  "#f0c860",   # amber: her eyes (when she looks up)
+    "accent_soft": "#8a6f4a",   # amber: deep, for borders
+    "teal":        "#4ec9b0",   # robe trim
+    "teal_soft":   "#2e7d6f",
+    "user_tag":    "#a8c8d8",   # cool soft, for the person across from her
+    "ai_tag":      "#d4a574",
+    "warn":        "#e0a85a",
+    "success":     "#7fb98b",
+    "error":       "#c9665a",
+    "text":        "#e8dcc4",   # warm cream: like candlelight on paper
+    "muted":       "#7a7060",   # warm gray-brown: secondary
+    "dim":         "#3d3a30",   # very dim warm: ambient
+    "border":      "#2a2620",
+    "border_lit":  "#4a4538",
 })
 
 console = Console(theme=THEME, highlight=False)
 
 
-# ── glyphs ─────────────────────────────────────────────────────────────────
 G = {
-    "logo":   "▲",
-    "user":   "❯",
-    "agent":  "●",
-    "dot":    "·",
-    "check":  "✓",
-    "spark":  "✦",
-    "arrow":  "›",
-    "diamond":"◆",
+    "logo":    "◆",   # the keeper's mark
+    "user":    "❯",
+    "agent":   "◆",
+    "dot":     "·",
+    "check":   "✓",
+    "spark":   "✦",
+    "arrow":   "›",
+    "diamond": "◇",
+    "soft":    "╴",
 }
 
-
-# ── helpers ────────────────────────────────────────────────────────────────
 def _box_width() -> int:
     return min(console.width - 4, 96)
 
@@ -59,7 +59,6 @@ def _cwd_label() -> str:
         return str(cwd)
 
 
-# ── branding ───────────────────────────────────────────────────────────────
 def _show_branding():
     lines = [
         "██╗   ██╗██████╗  █████╗ ██╗  ██╗███████╗██╗  ██╗ █████╗",
@@ -69,30 +68,42 @@ def _show_branding():
         " ╚████╔╝ ██║  ██║██║  ██║██║  ██╗███████║██║  ██║██║  ██║",
         "  ╚═══╝  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝",
     ]
-    shades = ["#00e6b8", "#00d4aa", "#00bf99", "#00a988", "#009377", "#007d65"]
+
+    shades = ["#8a6f4a", "#a8855a", "#c69968", "#d4a574", "#c69968", "#a8855a"]
     console.print()
     for line, color in zip(lines, shades):
         console.print(Padding(Text(line, style=f"bold {color}"), (0, 0, 0, 2)))
+
+    tag = Text.assemble(
+        Text("        ", style=""),
+        Text(G["diamond"], style="accent_lit"),
+        Text("  the keeper  ", style="accent"),
+        Text(G["dot"], style="dim"),
+        Text("  she remembers everything", style="muted italic"),
+    )
+    console.print(tag)
     console.print()
 
 
 def _welcome_card(agent: str, user: str):
-    """Compact context card — agent identity + session metadata."""
-    title = Text.assemble(
-        Text(f" {G['logo']} ", style="bold accent"),
-        Text(agent.lower(), style="bold text"),
-        Text("   A friend who remembers so that you can focus on creating", style="muted"),
+    greeting = Text.assemble(
+        Text(f" {G['logo']}  ", style="bold accent_lit"),
+        Text("welcome back, ", style="text"),
+        Text(user.lower(), style="bold user_tag"),
     )
+
+    line2 = Text("    i remember everything about you and your projects,", style="muted italic")
+    line3 = Text("    so you can focus on creating with a calm mind.",         style="muted italic")
+    sep   = Text("    ─────────────────────────────────────", style="dim")
 
     meta = Table.grid(padding=(0, 2), expand=False)
     meta.add_column(style="muted", justify="left", min_width=8)
     meta.add_column(style="text",  justify="left")
-    meta.add_row("agent",   f"[bold accent]{agent.lower()}[/bold accent]")
-    meta.add_row("user",    f"[user_tag]{user.lower()}[/user_tag]")
-    meta.add_row("cwd",     _cwd_label())
-    meta.add_row("memory",  f"[success]{G['check']}[/success]  [text]enabled[/text]")
+    meta.add_row("    name",   f"[accent]{agent.lower()}[/accent]")
+    meta.add_row("    cwd",    _cwd_label())
+    meta.add_row("    memory", f"[success]{G['check']}[/success]  [text]ready[/text]")
 
-    body = Group(title, Text(""), meta)
+    body = Group(greeting, Text(""), line2, line3, Text(""), sep, Text(""), meta)
 
     console.print(
         Padding(
@@ -108,82 +119,98 @@ def _welcome_card(agent: str, user: str):
     )
 
     hints = Text.assemble(
+        Text("  ", style=""),
+        Text("speak freely  ", style="muted italic"),
+        Text(G["dot"], style="dim"),
         Text("  type ", style="muted"),
         Text("exit", style="accent"),
-        Text(" to save & quit  ", style="muted"),
+        Text(" when you're done  ", style="muted"),
         Text(G["dot"], style="dim"),
         Text("  ", style="muted"),
         Text("ctrl-c", style="accent"),
-        Text(" to abort  ", style="muted"),
-        Text(G["dot"], style="dim"),
-        Text("  responses render as ", style="muted"),
-        Text("markdown", style="accent"),
+        Text(" to leave abruptly", style="muted"),
     )
     console.print(hints)
     console.print()
 
 
-# ── prompt input (pill) ────────────────────────────────────────────────────
-def _ask_prompt(input_prompt: str) -> str:
-    """Claude-Code style pill input.
+def _farewell_card(user: str) -> str:
+    console.print()
+    farewell = Text.assemble(
+        Text(f"  {G['logo']}  ", style="bold accent_lit"),
+        Text("until next time, ", style="muted italic"),
+        Text(user.lower(), style="bold user_tag"),
+    )
+    sub = Text("       i'll remember.", style="dim italic")
+    console.print(farewell)
+    console.print(sub)
+    console.print()
 
-    Top border carries the label; the user types next to a left bar; once
-    they press enter we close the pill with a bottom border so the
-    completed input reads as a single rounded box on screen.
+
+def _ask_prompt(input_prompt: str) -> str:
+    """Open-frame input, no right border, so long input wraps freely.
+
+    Layout:
+        ╭─ ask me anything ╴╴╴╴╴
+        │ ❯  user types here, can be very long, will simply
+        wrap to the next line without breaking any frame
+        ╰╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴
+
+    The frame is *open on the right* on purpose, `console.input` cannot
+    keep a right border aligned once the line wraps, and a broken right
+    border looks worse than no right border. The trailing dotted run on
+    the top suggests "open space" rather than a closed box.
     """
-    width = _box_width()
-    label = f" {G['spark']}  {input_prompt} "
-    label_len = len(label)
-    fill = max(width - label_len - 3, 4)
+    label = f" {input_prompt} "
+    # short trailing run of soft dashes, just enough to suggest openness
+    trail = "╴" * 4
 
     top = (
         f"[border_lit]╭─[/border_lit]"
-        f"[muted]{label}[/muted]"
-        f"[border_lit]{'─' * fill}╮[/border_lit]"
+        f"[muted italic]{label}[/muted italic]"
+        f"[border_lit]{trail}[/border_lit]"
     )
-    bottom = f"[border_lit]╰{'─' * (width - 2)}╯[/border_lit]"
+    bottom = f"[border_lit]╰{'╴' * 24}[/border_lit]"
 
     console.print(Padding(top, (1, 0, 0, 2)))
     raw = console.input(
-        f"  [border_lit]│[/border_lit]  [bold accent]{G['user']}[/bold accent]  "
+        f"  [border_lit]│[/border_lit]  [bold accent_lit]{G['user']}[/bold accent_lit]  "
     )
     console.print(Padding(bottom, (0, 0, 0, 2)))
     return raw.strip()
 
-
-# ── response rendering ─────────────────────────────────────────────────────
 def _print_response(agent: str, response: str):
-    """Minimal, content-first response block — no heavy panel chrome."""
+    """Minimal, content-first response block, no heavy panel chrome."""
     console.print()
 
     header = Text.assemble(
         Text("  "),
-        Text(f"{G['agent']} ", style="bold ai_tag"),
+        Text(f"{G['agent']}  ", style="bold ai_tag"),
         Text(agent.lower(), style="bold text"),
         Text(f"   {G['dot']}   ", style="dim"),
-        Text("response", style="muted"),
+        Text("she responds", style="muted italic"),
     )
     console.print(header)
-    console.print(Padding(Text("│", style="border_lit"), (0, 0, 0, 3)))
+    console.print(Padding(Text("│", style="accent_soft"), (0, 0, 0, 3)))
     console.print(
         Padding(
             Markdown(response, code_theme="monokai"),
             (0, 0, 0, 5),
         )
     )
-    console.print(Padding(Text("│", style="border_lit"), (0, 0, 0, 3)))
+    console.print(Padding(Text("│", style="accent_soft"), (0, 0, 0, 3)))
     console.print()
 
 
 def _print_correction(agent: str, response: str):
-    """Same shape as a response, but with a success accent."""
+    """Same shape as a response, but with a quiet success accent."""
     console.print()
     header = Text.assemble(
         Text("  "),
-        Text(f"{G['check']} ", style="bold success"),
+        Text(f"{G['check']}  ", style="bold success"),
         Text(agent.lower(), style="bold text"),
         Text(f"   {G['dot']}   ", style="dim"),
-        Text("correction applied", style="success"),
+        Text("she remembers it differently now", style="success italic"),
     )
     console.print(header)
     console.print(Padding(Text("│", style="success"), (0, 0, 0, 3)))
@@ -193,55 +220,53 @@ def _print_correction(agent: str, response: str):
 
 
 def _print_memory_sync(response: str):
-    """The end-of-session memory dump — slightly warmer accent."""
+    """The end-of-session memory dump, warm amber, like closing a journal."""
     console.print()
     header = Text.assemble(
         Text("  "),
-        Text(f"{G['diamond']} ", style="bold warn"),
-        Text("memory sync", style="bold text"),
+        Text(f"{G['diamond']}  ", style="bold accent_lit"),
+        Text("she folds the day away", style="bold text"),
         Text(f"   {G['dot']}   ", style="dim"),
-        Text("session committed", style="warn"),
+        Text("written to memory", style="accent italic"),
     )
     console.print(header)
-    console.print(Padding(Text("│", style="warn"), (0, 0, 0, 3)))
+    console.print(Padding(Text("│", style="accent_lit"), (0, 0, 0, 3)))
     console.print(Padding(Markdown(response, code_theme="monokai"), (0, 0, 0, 5)))
-    console.print(Padding(Text("│", style="warn"), (0, 0, 0, 3)))
+    console.print(Padding(Text("│", style="accent_lit"), (0, 0, 0, 3)))
     console.print()
 
 
-# ── core helper ────────────────────────────────────────────────────────────
-def _call_and_check(llm_fn, messages, user, agent) -> tuple[str, bool]:
-    response = llm_fn(messages)
-    should_exit, goodbye = check_exit(response)
+def _call_llm_only(llm_fn, messages) -> str:
+    """Bare LLM call, no spinner, no exit detection. Always call within a
+    console.status() context in the caller."""
+    return llm_fn(messages)
 
-    if should_exit:
-        with console.status(
-            f"[warn]  saving session memory[/warn]",
-            spinner="dots",
-            spinner_style="warn",
-        ):
-            messages.append({
-                "role": "user",
-                "content": "Finalize: summarize session into memory.yaml and update projects.yaml.",
-            })
-            final = llm_fn(messages)
 
-        _print_memory_sync(final)
-        console.print(
-            Padding(
-                Text.assemble(
-                    Text(f"  {G['check']}  ", style="bold success"),
-                    Text(goodbye, style="text"),
-                ),
-                (0, 0, 1, 0),
-            )
+def _run_memory_sync(llm_fn, messages, goodbye: str):
+    """Commit the session to memory and print the farewell block."""
+    with console.status(
+        f"[accent_lit]  she is committing this to memory[/accent_lit]",
+        spinner="dots",
+        spinner_style="accent_lit",
+    ):
+        messages.append({
+            "role": "user",
+            "content": "Finalize: summarize session into memory.yaml and update projects.yaml.",
+        })
+        final = llm_fn(messages)
+
+    _print_memory_sync(final)
+    console.print(
+        Padding(
+            Text.assemble(
+                Text(f"  {G['check']}  ", style="bold success"),
+                Text(goodbye, style="text"),
+            ),
+            (0, 0, 1, 0),
         )
-        return response, True
-
-    return response, False
+    )
 
 
-# ── public entry ───────────────────────────────────────────────────────────
 def run_loop(
     title: str,
     input_prompt: str,
@@ -254,33 +279,45 @@ def run_loop(
     user  = user_name().capitalize()
     messages: list[dict] = []
 
-    # ── startup chrome ─────────────────────────────────────────────────────
+    
     _show_branding()
     _welcome_card(agent, user)
 
-    # ── main loop ──────────────────────────────────────────────────────────
+    # === main loop =================================================
     while True:
         prompt = _ask_prompt(input_prompt)
 
         if not prompt:
             continue
 
-        messages.append({"role": "user", "content": prompt})
+        if prompt.lower().strip() in ("exit", "quit", "bye", "goodbye"):
+            break
+
+        messages.append({
+            "role": "user",
+            "content": prompt
+            })
 
         with console.status(
-            f"[muted]  {agent.lower()} is thinking[/muted]",
+            f"[muted italic]  she is thinking[/muted italic]",
             spinner="dots",
             spinner_style="accent",
         ):
-            response, exiting = _call_and_check(llm_fn, messages, user, agent)
+            response = _call_llm_only(llm_fn, messages)
 
-        if exiting:
+        should_exit, goodbye = check_exit(response)
+
+        if should_exit:
+            _run_memory_sync(llm_fn, messages, goodbye)
             break
 
-        messages.append({"role": "assistant", "content": response})
+        messages.append({
+            "role": "assistant",
+            "content": response
+            })
         _print_response(agent, response)
 
-        # ── optional verification flow ─────────────────────────────────────
+
         should_verify = verify_always or trigger_phrase in response
 
         if should_verify:
@@ -325,13 +362,17 @@ def run_loop(
                         spinner="dots",
                         spinner_style="success",
                     ):
-                        correction, exiting = _call_and_check(
-                            llm_fn, messages, user, agent
-                        )
-                    if exiting:
+                        correction = _call_llm_only(llm_fn, messages)
+
+                    should_exit_c, goodbye_c = check_exit(correction)
+                    if should_exit_c:
+                        _run_memory_sync(llm_fn, messages, goodbye_c)
                         break
 
-                    messages.append({"role": "assistant", "content": correction})
+                    messages.append({
+                        "role": "assistant",
+                        "content": correction
+                        })
                     _print_correction(agent, correction)
 
                 elif is_correct == "y":
@@ -340,14 +381,5 @@ def run_loop(
                         "content": "Verdict confirmed correct. Update validation_benchmarks with PASS.",
                     })
 
-    # ── exit chrome ────────────────────────────────────────────────────────
-    console.print()
-    farewell = Text.assemble(
-        Text(f"  {G['logo']}  ", style="bold accent"),
-        Text("session ended  ", style="muted"),
-        Text(G["dot"], style="dim"),
-        Text(f"  goodbye, ", style="muted"),
-        Text(user.lower(), style="bold user_tag"),
-    )
-    console.print(farewell)
-    console.print()
+    # === exit chrome ===========================================
+    _farewell_card(user)

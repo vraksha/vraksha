@@ -1,20 +1,15 @@
 from src.skills.slop_detector.prompts import Prompts
 
-from src.utils.read_memory import extract_content
+from src.utils.read_file import extract_content
 from src.utils.changes import apply_changes
 
 from src.skills.slop_detector.services.prepare_for_llm import PrepareForLLM
 
 from src.utils.call_llm import call_llm
 
-"""Note that part for memory path is not used now"""
-PART = "slop_detector" # For memory path
-ROLE = "slop_detector" # For its function and client info
+MODEL_PART = "slop_detector" # For models.yaml key
 
 def _forensic():
-
-    project = extract_content(filename="projects", part=PART)
-    memory  = extract_content(filename="memory", part=PART)
 
     _SYSTEM_PROMPT = f"""
         ## Behavior
@@ -25,24 +20,10 @@ def _forensic():
         ## Task
         {Prompts.forensic()}
 
-        ## Memory Protocol
-        Post-analysis, always append to projects.yaml:
-        slop_analyses:
-        - repo_url: url
-            verdict: verdict
-            probability_score: score
-            confidence_reasoning: reasoning
-            signals_found: [A1, A3, H2...]
-            analyzed_at: date
-
         ## Context
-        <file_list>
-        <file name="projects.yaml">{project}</file>
-        <file name="memory.yaml">{memory}</file>
-        </file_list>
+        (Sub-agents are focused on their specific task and do not manage memory)
         """
     return _SYSTEM_PROMPT
-
 
 def detector_agent(messages: list[dict]) -> str:
 
@@ -75,17 +56,11 @@ def detector_agent(messages: list[dict]) -> str:
 
     # SHARED LLM CALLER
     response = call_llm(
-        role=ROLE,
+        model_part=MODEL_PART,
         system=_forensic(),
         messages=messages,
         max_tokens=1500
     )
-
-    """
-        Apply changes for sub agents is removed because they will be designed to just do the task
-        Orchestrator will handle everything else
-    """
-    # apply_changes(response, part=ROLE)
 
     return response
 
