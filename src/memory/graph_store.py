@@ -11,7 +11,7 @@ def get_client():
     return _client
 
 async def add_episode(content: str, session_id: str) -> None:
-    # TODO: Haiku extraction logic happens BEFORE calling this, or inside here
+    # TODO: Extraction logic happens BEFORE calling this, or inside here
     # TODO: Write extracted nodes/edges to Kùzu
     # TODO: Implement temporal resolution (valid_until = now for contradicted edges)
     pass
