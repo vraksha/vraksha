@@ -27,116 +27,180 @@ def call_llm(
     """
     All shared info for all sub agents
     """
-    llm = client_info(model_part)
+    clients = client_info(model_part)
+    
+    last_error = None
 
-    client = llm["client"]
-    client_name = llm["name"]
-    model = llm["model"]
+    for llm in clients:
+        client = llm["client"]
+        client_name = llm["name"]
+        model = llm["model"]
 
-    if client_name == "anthropic":
-        response = client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            system=system,
-            tools=tools or [],
-            messages=messages,
-        )
+        try:
+            if client_name == "anthropic":
+                # Convert messages to plain dicts to avoid serialization errors with mock blocks
+                anthropic_messages = []
+                for msg in messages:
+                    content = msg["content"]
+                    if isinstance(content, list):
+                        new_content = []
+                        for block in content:
+                            if hasattr(block, "type"):
+                                b = {"type": block.type}
+                                if block.type == "text":
+                                    b["text"] = block.text
+                                elif block.type == "tool_use":
+                                    b["id"] = block.id
+                                    b["name"] = block.name
+                                    b["input"] = block.input
+                                elif block.type == "tool_result":
+                                    b["tool_use_id"] = block.tool_use_id
+                                    b["content"] = block.content
+                                new_content.append(b)
+                            else:
+                                new_content.append(block)
+                        anthropic_messages.append({"role": msg["role"], "content": new_content})
+                    else:
+                        anthropic_messages.append(msg)
 
-        if raw:
-            return response
+                response = client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    system=system,
+                    tools=tools or [],
+                    messages=anthropic_messages,
+                )
 
-        return response.content[0].text
+                if raw:
+                    return response
 
-    elif client_name == "openai":
-        # Converting Anthropic-style messages to OpenAI-style ones
-        openai_messages = [{
-            "role": "system",
-            "content": system
-        }]
+                return response.content[0].text
 
-        for msg in messages:
-            role = msg["role"]
-            content = msg["content"]
-            
-            if isinstance(content, list):
-                # Handle tool_use or tool_result blocks
-                for block in content:
-                    if block["type"] == "text":
-                        openai_messages.append({"role": role, "content": block["text"]})
+            elif client_name == "openai":
+                # Converting Anthropic-style messages to OpenAI-style ones
+                openai_messages = [{
+                    "role": "system",
+                    "content": system
+                }]
 
-                    elif block["type"] == "tool_use":
-                        # Assistant calling a tool
-                        openai_messages.append({
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [{
-                                "id": block["id"],
-                                "type": "function",
-                                "function": {
-                                    "name": block["name"],
-                                    "arguments": json.dumps(block["input"])
-                                }
-                            }]
+                for msg in messages:
+                    role = msg["role"]
+                    content = msg["content"]
+                    
+                    if isinstance(content, list):
+                        # Group all blocks for this message
+                        assistant_text = ""
+                        assistant_tool_calls = []
+                        tool_results = []
+
+                        for block in content:
+                            b_type = getattr(block, "type", block.get("type") if isinstance(block, dict) else None)
+                            
+                            if b_type == "text":
+                                text = getattr(block, "text", block.get("text") if isinstance(block, dict) else "")
+                                if role == "assistant":
+                                    assistant_text += text
+                                else:
+                                    # User or other roles
+                                    openai_messages.append({"role": role, "content": text})
+
+                            elif b_type == "tool_use":
+                                b_id = getattr(block, "id", block.get("id") if isinstance(block, dict) else "")
+                                b_name = getattr(block, "name", block.get("name") if isinstance(block, dict) else "")
+                                b_input = getattr(block, "input", block.get("input") if isinstance(block, dict) else {})
+                                
+                                assistant_tool_calls.append({
+                                    "id": b_id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": b_name,
+                                        "arguments": json.dumps(b_input)
+                                    }
+                                })
+
+                            elif b_type == "tool_result":
+                                b_id = getattr(block, "tool_use_id", block.get("tool_use_id") if isinstance(block, dict) else "")
+                                b_content = getattr(block, "content", block.get("content") if isinstance(block, dict) else "")
+                                
+                                tool_results.append({
+                                    "role": "tool",
+                                    "tool_call_id": b_id,
+                                    "content": b_content
+                                })
+                        
+                        # After processing all blocks in this list-content message:
+                        if role == "assistant":
+                            msg_obj = {"role": "assistant", "content": assistant_text or None}
+                            if assistant_tool_calls:
+                                msg_obj["tool_calls"] = assistant_tool_calls
+                            openai_messages.append(msg_obj)
+                        
+                        # Add any tool results found in this block list
+                        for tr in tool_results:
+                            openai_messages.append(tr)
+
+                    else:
+                        openai_messages.append({"role": role, "content": content})
+
+                # Convert Anthropic-style tools to OpenAI-style
+                openai_tools = []
+                if tools:
+                    for tool in tools:
+                        openai_tools.append({
+                            "type": "function",
+                            "function": {
+                                "name": tool["name"],
+                                "description": tool["description"],
+                                "parameters": tool["input_schema"]
+                            }
                         })
 
-                    elif block["type"] == "tool_result":
-                        # User providing tool result
-                        openai_messages.append({
-                            "role": "tool",
-                            "tool_call_id": block["tool_use_id"],
-                            "content": block["content"]
-                        })
-            else:
-                openai_messages.append({"role": role, "content": content})
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=openai_messages,
+                    tools=openai_tools or None,
+                    max_tokens=max_tokens,
+                )
 
-        # Convert Anthropic-style tools to OpenAI-style
-        openai_tools = []
-        if tools:
-            for tool in tools:
-                openai_tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": tool["name"],
-                        "description": tool["description"],
-                        "parameters": tool["input_schema"]
-                    }
-                })
-
-        response = client.chat.completions.create(
-            model=model,
-            messages=openai_messages,
-            tools=openai_tools or None,
-            max_tokens=max_tokens,
-        )
-
-        choice = response.choices[0]
-        message = choice.message
-        
-        if raw:
-            # Normalize to Anthropic-style
-            content_blocks = []
-            if message.content:
-                content_blocks.append(ContentBlock("text", text=message.content))
-            
-            if message.tool_calls:
-                for tc in message.tool_calls:
-                    content_blocks.append(ContentBlock(
-                        "tool_use",
-                        id=tc.id,
-                        name=tc.function.name,
-                        input=json.loads(tc.function.arguments)
-                    ))
-            
-            stop_reason = "end_turn"
-            if choice.finish_reason == "tool_calls":
-                stop_reason = "tool_use"
+                choice = response.choices[0]
+                message = choice.message
                 
-            elif choice.finish_reason == "stop":
-                stop_reason = "end_turn"
-            
-            return NormalizedResponse(content_blocks, stop_reason)
+                if raw:
+                    # Normalize to Anthropic-style
+                    content_blocks = []
+                    if message.content:
+                        content_blocks.append(ContentBlock("text", text=message.content))
+                    
+                    if message.tool_calls:
+                        for tc in message.tool_calls:
+                            content_blocks.append(ContentBlock(
+                                "tool_use",
+                                id=tc.id,
+                                name=tc.function.name,
+                                input=json.loads(tc.function.arguments)
+                            ))
+                    
+                    stop_reason = "end_turn"
+                    if choice.finish_reason == "tool_calls":
+                        stop_reason = "tool_use"
+                        
+                    elif choice.finish_reason == "stop":
+                        stop_reason = "end_turn"
+                    
+                    return NormalizedResponse(content_blocks, stop_reason)
 
-        return message.content or ""
+                return message.content or ""
+        
+        except Exception as e:
+            last_error = e
+            error_msg = str(e).lower()
+            # If it's an authentication error and we have more clients to try, continue
+            if ("authentication" in error_msg or "401" in error_msg or "api key" in error_msg) and len(clients) > 1:
+                continue
+            raise e
 
+    if last_error:
+        raise last_error
+    
     raise Exception("Oops!\nCouldn't get response from client")
 
