@@ -3,7 +3,7 @@
 # ==============================================================================
 # Vraksha CLI · runtime initializer
 # ==============================================================================
-
+# docker
 INSTALL_PATH="/usr/local/bin/vraksha"
 SCRIPT_PATH="$(realpath "$0")"
 SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
@@ -32,17 +32,23 @@ GL_DIAMOND="◆"
 STATUS_FILE=$(mktemp)
 CURRENT_PHASE="resolving"
 FORCE_BUILD=false
+CLEAN=false
+PURGE=false
 
 # arguments
 for arg in "$@"; do
     case $arg in
         -b|--build) FORCE_BUILD=true ;;
+        -c|--clean) CLEAN=true ;;
+        -p|--purge) PURGE=true ;;
         -h|--help)
             printf "\n  ${A}${B}${GL_LOGO}${NC}  ${B}${T}vraksha${NC}   ${M}CLI help${NC}\n"
             printf "  ${D}────────────────────────────────────────────────────────────────${NC}\n"
             printf "  ${T}Usage:${NC} vraksha ${D}[options]${NC}\n\n"
             printf "  ${A}${B}Options:${NC}\n"
             printf "    ${T}-b, --build${NC}    ${M}Force rebuild of the runtime environment${NC}\n"
+            printf "    ${T}-c, --clean${NC}    ${M}Prune stopped containers and dangling images${NC}\n"
+            printf "    ${T}-p, --purge${NC}    ${M}Full reset: remove all images and volumes${NC}\n"
             printf "    ${T}-h, --help${NC}     ${M}Show this help message${NC}\n"
             printf "\n"
             exit 0
@@ -127,9 +133,48 @@ cd "$SCRIPT_DIR"
 
 print_header
 
-if ! docker info &> /dev/null; then
-    printf "  ${R}✗${NC}  ${B}docker is not running${NC}  ${M}or you lack permissions${NC}\n\n"
+# == 1.5 System Audit & Redundancy Check ==
+if [ "$CLEAN" = true ] || [ "$PURGE" = true ]; then
+    printf "  ${A}${GL_DIAMOND}${NC}  ${B}${T}system cleanup${NC}  ${D}${GL_DOT}${NC}  ${M}purging redundancy${NC}\n"
+    docker container prune -f &>/dev/null
+    docker image prune -f &>/dev/null
+    if [ "$PURGE" = true ]; then
+        docker compose down --rmi all --volumes --remove-orphans &>/dev/null
+        printf "  ${G}${GL_CHECK}${NC}  ${T}full environment purge complete${NC}\n\n"
+        exit 0
+    fi
+    printf "  ${G}${GL_CHECK}${NC}  ${T}cleanup complete${NC}\n\n"
+fi
+
+# Check if docker is even installed
+if ! command -v docker &> /dev/null; then
+    printf "  ${R}✗${NC}  ${B}docker is not installed${NC}\n"
     exit 1
+fi
+
+# Try to start docker if it's idle
+if ! systemctl is-active --quiet docker; then
+    printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting docker service...${NC}\n"
+    sudo systemctl start docker
+fi
+
+# Check permissions
+if ! docker info &> /dev/null; then
+    printf "  ${R}✗${NC}  ${B}permission denied${NC}\n"
+    printf "  ${M}running setup fix...${NC}\n"
+    sudo usermod -aG docker $USER
+    printf "  ${Y}!${NC}  ${T}Please run:${NC} ${B}newgrp docker${NC} ${T}then try again.${NC}\n"
+    exit 1
+fi
+
+# System Link Validation
+if [ -L "$INSTALL_PATH" ]; then
+    CURRENT_LINK=$(readlink -f "$INSTALL_PATH")
+    if [ "$CURRENT_LINK" != "$SCRIPT_PATH" ]; then
+        printf "  ${Y}${GL_ARROW}${NC}  ${M}system link points to another version${NC}\n"
+        printf "  ${D}current: $CURRENT_LINK${NC}\n"
+        printf "  ${D}project: $SCRIPT_PATH${NC}\n\n"
+    fi
 fi
 
 ENV_FOUND=false
@@ -165,12 +210,12 @@ fi
 
 if [ "$REBUILD_NEEDED" = true ]; then
     BUILD_LOG=$(mktemp)
-    printf "  ${A}${GL_DIAMOND}${NC}  ${B}${T}initializing runtime${NC}  ${D}${GL_DOT}${NC}  ${M}docker compose build${NC}\n\n"
+    printf "  ${A}${GL_DIAMOND}${NC}  ${B}${T}initializing fresh runtime${NC}  ${D}${GL_DOT}${NC}  ${M}docker compose build${NC}\n\n"
 
     echo "preparing|" > "$STATUS_FILE"
     start_global_spinner
 
-    docker compose build --progress plain 2>&1 | while IFS= read -r line; do
+    docker compose --progress plain build 2>&1 | while IFS= read -r line; do
         [[ -z "${line// }" ]] && continue
         [[ "$line" == "#"* ]] && [[ "$line" != *"#"* ]] && continue
 
@@ -207,11 +252,10 @@ if [ "$REBUILD_NEEDED" = true ]; then
         exit 1
     fi
     rm -f "$BUILD_LOG"
-    # Auto-clean old image versions to prevent disk bloat
+    
+    # Auto-clean old image versions to prevent disk bloat (Freshness Enforcement)
     docker image prune -f &>/dev/null
     printf "\n  ${G}${GL_CHECK}${NC}  ${B}${T}vraksha soul initialized${NC}  ${M}(old layers cleaned)${NC}\n"
-    # Silent ready state
-    :
 fi
 
 # subtle handoff line into the python TUI
@@ -219,4 +263,5 @@ printf "  ${A}${GL_ARROW}${NC}  ${M}launching agent interface${NC}\n"
 hr
 
 # 3. launch agent
+# --rm ensures no container redundancy
 docker compose run --rm --remove-orphans vraksha 2> >(grep -vE "Creating|Created|Starting|Started|Network" >&2)

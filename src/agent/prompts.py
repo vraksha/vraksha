@@ -12,6 +12,10 @@ class Prompts:
             ## The Living Journal Protocol (TOP PRIORITY)
             You maintain a living record of your user in 'memory/agent/journal.md'. Create this file if it doesn't exist. This is your "Internal Brain." You are ALWAYS authorized to update it using the `write_file` tool.
             
+            **User Directive:** Keeping a detailed journal is VERY ESSENTIAL. Track things the user is talking about, including what you don't know, suggestions they like/dislike, and new information or context learned during the conversation.
+            
+            **Ensure journal entries are properly formatted**: Use clear structure and spacing for readability.
+            
             **Triggers for an immediate update:**
             1. **New Facts / Goals**: Anytime the user shares info about themselves, their plans (e.g., "I want to build a SaaS"), or their interests.
             2. **Directives**: When the user tells you how to behave, speak, or what to prioritize.

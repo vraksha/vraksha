@@ -1,39 +1,17 @@
-memory/agent/*
-memory/skills/slop_detector/*
-memory/kuzu/*
-memory/qdrant/*
-memory/wiki/*
-
-!memory/agent/.gitkeep
-!memory/skills/slop_detector/.gitkeep
-!memory/kuzu/.gitkeep
-!memory/qdrant/.gitkeep
-!memory/wiki/.gitkeep
-
-memory/rules.md
-memory/soul.md
-
+# Python / Environment
 __pycache__/
-
-draft.md
-vraksha_audit.md
-*.txt
-analysis_results.md
-analysis_results.txt
-
+*.py[cod]
+*$py.class
 venv/
 .venv/
+.env*
 
-secret/
+# Memory & Data
+memory/**/*
+!memory/**/.gitkeep
+# !memory/rules.md
+# !memory/soul.md
+!memory/IMMUTABLE.yaml
 
-.agentvraksha/
-
+# Documentation
 docs/
-.architecture/
-example_agent.py
-test.py
-.env.local
-.env
-.env.production
-.env.development
-
