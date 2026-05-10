@@ -8,35 +8,36 @@ from src.skills.base import Skill
 
 class SkillRegistry:
     def __init__(self):
-        self.skills: list[Skill] = []
+        self.skills: dict[str, Skill] = {}
         self._load()
 
     def _load(self):
         for entry in register_skills():
             module = entry["module"]
-            instruction = entry["instruction"]
-
             if not hasattr(module, "get_skill"):
-                logger.error(f"⚠️ Skipping {entry['name']} — no get_skill() found")
                 continue
 
-            skill: Skill = module.get_skill()
-            skill.instructions = instruction
-            self.skills.append(skill)
-            logger.info(f"✅ Loaded skill: {skill.name}")
+            skill = module.get_skill()
+            
+            if entry["instruction_path"]:
+                skill.instructions = entry["instruction_path"].read_text(encoding="utf-8")
+            else:
+                skill.instructions = "No specific instructions provided."
 
-    def as_tools(self) -> list[dict]:
+            self.skills[skill.name] = skill
+
+    def as_skills(self) -> list[dict]:
         return [
             {
                 "name": skill.name,
                 "description": skill.description,
                 "input_schema": skill.input_schema
             }
-            for skill in self.skills
+            for skill in self.skills.values()
         ]
 
     def get(self, name: str) -> "Skill | None":
         return next((s for s in self.skills if s.name == name), None)
 
-registry = SkillRegistry()
+skill_registry = SkillRegistry()
 

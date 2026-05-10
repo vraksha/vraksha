@@ -1,17 +1,19 @@
 # Necessary packages
 from rich.console import Console
+import textwrap
 
 # Custom modules
 from src.agent.prompts import Prompts
 from src.utils.read_file import extract_content
 from src.utils.changes import apply_changes
-
-from src.utils.command_tool import command_tool
-from src.utils.file_tools import file_tools
 from src.utils.immutables import immutable_paths
 
-# Skills registrations
-from src.skills.registry import registry
+# Tools and commands
+from src.utils.command_tool import command_tool
+
+# Skills/tools registrations
+from src.skills.registry import skill_registry
+from src.tools.registry import tool_registry
 
 # Shared llm caller
 from src.utils.call_llm import call_llm
@@ -39,6 +41,7 @@ def _format_immutable_block() -> str:
     return f"- {paths[0]}" + "".join(f"\n{indent}- {p}" for p in paths[1:])
 
 
+
 def _system():
     # Memory files inlined for the agent's working context
     rules   = extract_content(filename="rules",    role=MEMORY_ROLE)
@@ -48,164 +51,141 @@ def _system():
     soul    = extract_content(filename="soul",     role=None) # Look in memory/ root
 
     skills_available = "\n".join(
-        f"- {skill.name}: {skill.description}\n{skill.instructions}"
-        for skill in registry.skills
+        f"- {skill['name']}: {skill['description']}\n{skill.get('instructions', '')}"
+        for skill in skill_registry.as_skills()
     )
 
-    _SYSTEM_PROMPT = f"""
-            <identity>
-            {soul}
-            </identity>
+    tools_available = "\n".join(
+        f"- {tool['name']}: {tool['description']}"
+        for tool in tool_registry.as_tools()
+    )
 
-            <journal>
-            {journal}
-            </journal>
+    _SYSTEM_PROMPT = textwrap.dedent(f"""
+        <identity>
+        {soul}
+        </identity>
 
-            ## The Living Journal Protocol
-            You maintain a living record of your user in 'memory/agent/journal.md'.
-            If you learn something new about the user's preferences, identity, or how they want you to behave, update this file IMMEDIATELY using the 'write_file' tool. Do not wait for the end of the session. This file is your "brain" for the user's persona—keep it accurate and updated in real-time.
+        <journal>
+        {journal}
+        </journal>
 
-            - If the user wants to exit or leave or end the conversation, say something to the user and to exit, include this exact format in your response with the relevant message in between the tags:
-            <WANTS_TO_EXIT>put_a_message_here</WANTS_TO_EXIT>
+        ## The Living Journal Protocol
+        You maintain a living record of your user in 'memory/agent/journal.md'.
+        If you learn something new about the user's preferences, identity, or how they want you to behave, update this file IMMEDIATELY using the 'write_file' tool.
+        Do not wait for the end of the session.
+        This file is your "brain" for the user's persona—keep it accurate and updated in real-time.
 
-            {Prompts.system(immutable_block=_format_immutable_block())}
+        {Prompts.system(immutable_block=_format_immutable_block())}
 
-            ## Your Tools
-            You have tools available. When a user request requires a tool, you MUST call it — do not say you can't.
+        ## Your Tools
+        You have tools available.
+        When you get response from user, think whether you can use the tool or not, if there's even a small chance you could use tool, you MUST CALL the tool.
+        DONOT GIVE UP one the very first attempts, ask user for help only when you have failed multiple times.
+        Try whatever you can before asking user for help.
 
-            ### Skills (Sub-agents)
-            These are specialist tools you can call:
-            {skills_available}
+        These are the tools you can call:
+        {tools_available}
 
-            ### Command Execution
-            You have the `run_command` tool. Use it to execute any shell command in a secure Docker sandbox.
-            The sandbox auto-destroys after each command. Call this tool whenever the user asks to run code, check system info, or do anything that requires a shell.
+        ### Skills (Sub-agents)
+        These are specialist tools you can call:
+        {skills_available}
 
-            ### File Read / Write
-            You have `read_file` and `write_file` tools (described above in "Working with the User's Project Files").
-            Use them whenever you need to inspect or modify files in the user's project.
+        ### Command Execution
+        You have the `run_command` tool. Use it to execute any shell command in a secure Docker sandbox.
+        The sandbox auto-destroys after each command. Call this tool whenever the user asks to run code, check system info, or do anything that requires a shell.
 
-           <file_list>
-            <file name="rules.md">{rules}</file>
-            <file name="projects.yaml">{project}</file>
-            <file name="memory.yaml">{memory}</file>
-            </file_list>
+        ### File Read / Write
+        You have `read_file` and `write_file` tools (described above in "Working with the User's Project Files").
+        Use them whenever you need to inspect or modify files in the user's project.
 
-            """
+        <file_list>
+        <file name="rules.md">{rules}</file>
+        <file name="projects.yaml">{project}</file>
+        <file name="memory.yaml">{memory}</file>
+        </file_list>
+    """)
 
     return _SYSTEM_PROMPT
 
-
 def agent(messages: list[dict]) -> str:
-    skills = registry.as_tools()
+    system_prompt = _system()
+    skills = skill_registry.as_skills()
     cmd_tool = command_tool.run_command_tool
-    read_tool = file_tools.read_file_tool
-    write_tool = file_tools.write_file_tool
-    create_tool = file_tools.create_file_tool
-    remove_tool = file_tools.remove_file_tool
+    avail_tools = tool_registry.as_tools()
+    all_tools_schemas = [cmd_tool, *skills, *avail_tools]
 
-    tools = [*skills, cmd_tool, read_tool, write_tool, create_tool, remove_tool]
-
-    # SHARED LLM CALLER
     response = call_llm(
         model_part=MODEL_PART,
-        system=_system(),
-        tools=tools,
+        system=system_prompt, # Use the cached version
+        tools=all_tools_schemas,
         messages=messages,
         max_tokens=1500,
         raw=True
     )
 
     while response.stop_reason == "tool_use":
-        # 1. Store the assistant turn once
+        console.log('\n[muted]  • Thinking...[/muted]')
+        
         messages.append({
             "role": "assistant",
             "content": response.content
-        })
+            })
 
-        # 2. Gather all tool results for this turn
         tool_results = []
+
         for block in response.content:
             if block.type != "tool_use":
                 continue
-                
-            tool_use = block
-            tool_name  = tool_use.name
-            tool_input = tool_use.input
-
+        
+            tool_name = block.name
+            tool_input = block.input
             result = ""
-            instructions = ""
 
             if tool_name == "run_command":
-                result = command_tool.handle_tool_call(tool_name, tool_input)
-                instructions = cmd_tool["description"]
+                console.log(f'[muted]  • Executing Shell Command[/muted]')
 
-            elif tool_name in ("read_file", "write_file", "create_file", "remove_file"):
-                p = tool_input.get("path", "...")
-                if tool_name == "read_file":   console.log(f"[muted]  • reading [accent]{p}[/accent][/muted]")
-                if tool_name == "write_file":  console.log(f"[muted]  • writing [accent]{p}[/accent][/muted]")
-                if tool_name == "create_file": console.log(f"[muted]  • creating [accent]{p}[/accent][/muted]")
-                if tool_name == "remove_file": console.log(f"[muted]  • removing [accent]{p}[/accent][/muted]")
-                result = file_tools.handle_tool_call(tool_name, tool_input)
+                result = command_tool.handle_tool_call(tool_input)
+
+            elif any(t["name"] == tool_name for t in avail_tools):
+                tool = tool_registry.get(tool_name)
+
+                console.log(f'[muted]  • {tool.action} [accent]{tool_input.get("path", "project")}[/accent][/muted]')
                 
-                if tool_name == "read_file":
-                    instructions = read_tool["description"]
+                result = tool.call(tool_input)
 
-                elif tool_name == "write_file":
-                    instructions = write_tool["description"]
+            elif any(t["name"] == tool_name for t in skills):
+                skill = skill_registry.get(tool_name)
 
-                elif tool_name == "remove_file":
-                    instructions = remove_tool["description"]
-
-                elif tool_name == "create_file":
-                    instructions = create_tool["description"]
-
-                else:
-                    instructions = remove_tool["description"]
-
-            else:
-                skill = registry.get(tool_name)
                 
-                if not skill:
-                    raise Exception(f"Skill {tool_name} not found")
-
+                console.log(f'[muted]  • Delegating to [accent]{tool_name}[/accent] skill[/muted]')
                 result = skill.run(tool_input)
-                instructions = getattr(skill, "instructions")
+            
+            else:
+                result = f"Error: Tool {tool_name} not found in registry."
             
             tool_results.append({
                 "type": "tool_result",
-                "tool_use_id": tool_use.id,
+                "tool_use_id": block.id,
                 "content": str(result)
             })
 
-        # 3. Append all tool results as a single user message (OpenAI requirement)
-        messages.append({
-            "role": "user",
-            "content": tool_results
-        })
+        messages.append({"role": "user", "content": tool_results})
 
-        # 4. Call LLM again with full context
         response = call_llm(
             model_part=MODEL_PART,
-            system=_system(),
-            tools=tools,
+            system=system_prompt, #Still using the cached system_prompt
+            tools=all_tools_schemas,
             messages=messages,
             max_tokens=1500,
             raw=True
         )
 
-    final_block = next(
-        (block for block in response.content if block.type == "text"),
-        None
-    )
+    text_blocks = [b.text for b in response.content if b.type == "text"]
+    final_text = "".join(text_blocks)
 
-    if not final_block:
-        return ""
+    if not final_text:
+        return "Agent finished without a text response."
 
-    after_changes = apply_changes(final_block.text, role=MEMORY_ROLE)
-
-    # Ensure we return the string response, not the integer count of updates
-    if isinstance(after_changes, str):
-        return after_changes
-
-    return final_block.text
+    processed_output = apply_changes(final_text, role=MEMORY_ROLE)
+    
+    return processed_output if isinstance(processed_output, str) else final_text

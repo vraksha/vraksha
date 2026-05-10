@@ -9,19 +9,19 @@ def discover_skills():
         yield skill_file
 
 def register_skills():
-    for skill_file in discover_skills():
-        skill_name = skill_file.parent.name
+    for skill_file in SKILLS_DIR.rglob("*/skill.py"):
+        rel_name = f"skill_{skill_file.parent.stem}"
         
-        spec = util.spec_from_file_location(skill_name, skill_file)
-        module = util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        spec = util.spec_from_file_location(rel_name, skill_file)
+        if spec and spec.loader:
+            module = util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            
+            md_path = skill_file.parent / "SKILL.md"
+            
+            yield {
+                "module": module,
+                "instruction_path": md_path if md_path.exists() else None
+            }
 
-        instruction_path = skill_file.parent / "SKILL.md"
-        instruction = instruction_path.read_text(encoding="utf-8") if instruction_path.exists() else ""
-
-        yield {
-            "name": skill_name,
-            "module": module,
-            "instruction": instruction
-        }
-
+            

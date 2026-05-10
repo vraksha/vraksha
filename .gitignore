@@ -6,6 +6,8 @@ venv/
 .venv/
 .env*
 
+*.log
+
 # Memory & Data
 memory/**/*
 !memory/**/.gitkeep

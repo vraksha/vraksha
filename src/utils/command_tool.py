@@ -22,17 +22,16 @@ class CommandTool:
             }
         }
 
-    def handle_tool_call(self, tool_name: str, tool_input: dict) -> str:
-        if tool_name == "run_command":
-            result = run_command(
-                command=tool_input["command"],
-                timeout=tool_input.get("timeout", 30)
-            )
-            
-            return (
-                f"Exit code: {result['exit_code']}\n"
-                f"stdout:\n{result['stdout']}\n"
-                f"stderr:\n{result['stderr']}"
-            )
+    def handle_tool_call(self, tool_input: dict) -> str:
+        result = run_command(
+            command=tool_input["command"],
+            timeout=tool_input.get("timeout", 30)
+        )
+        
+        return (
+            f"Exit code: {result['exit_code']}\n"
+            f"stdout:\n{result['stdout']}\n"
+            f"stderr:\n{result['stderr']}"
+        )
 
 command_tool = CommandTool()

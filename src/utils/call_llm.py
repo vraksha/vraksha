@@ -25,7 +25,7 @@ def call_llm(
     raw: bool = False
 ) -> str | NormalizedResponse:
     """
-    All shared info for all sub agents
+        All shared info for all sub agents
     """
     clients = client_info(model_part)
     
@@ -40,26 +40,39 @@ def call_llm(
             if client_name == "anthropic":
                 # Convert messages to plain dicts to avoid serialization errors with mock blocks
                 anthropic_messages = []
+
                 for msg in messages:
                     content = msg["content"]
+
                     if isinstance(content, list):
                         new_content = []
+
                         for block in content:
                             if hasattr(block, "type"):
                                 b = {"type": block.type}
+
                                 if block.type == "text":
                                     b["text"] = block.text
+
                                 elif block.type == "tool_use":
                                     b["id"] = block.id
                                     b["name"] = block.name
                                     b["input"] = block.input
+
                                 elif block.type == "tool_result":
                                     b["tool_use_id"] = block.tool_use_id
                                     b["content"] = block.content
+
                                 new_content.append(b)
+
                             else:
                                 new_content.append(block)
-                        anthropic_messages.append({"role": msg["role"], "content": new_content})
+
+                        anthropic_messages.append({
+                                "role": msg["role"],
+                                "content": new_content
+                            })
+                    
                     else:
                         anthropic_messages.append(msg)
 
@@ -98,8 +111,10 @@ def call_llm(
                             
                             if b_type == "text":
                                 text = getattr(block, "text", block.get("text") if isinstance(block, dict) else "")
+                                
                                 if role == "assistant":
                                     assistant_text += text
+                                
                                 else:
                                     # User or other roles
                                     openai_messages.append({"role": role, "content": text})
@@ -131,8 +146,10 @@ def call_llm(
                         # After processing all blocks in this list-content message:
                         if role == "assistant":
                             msg_obj = {"role": "assistant", "content": assistant_text or None}
+
                             if assistant_tool_calls:
                                 msg_obj["tool_calls"] = assistant_tool_calls
+                                
                             openai_messages.append(msg_obj)
                         
                         # Add any tool results found in this block list
@@ -181,6 +198,7 @@ def call_llm(
                             ))
                     
                     stop_reason = "end_turn"
+
                     if choice.finish_reason == "tool_calls":
                         stop_reason = "tool_use"
                         
@@ -194,9 +212,11 @@ def call_llm(
         except Exception as e:
             last_error = e
             error_msg = str(e).lower()
+
             # If it's an authentication error and we have more clients to try, continue
             if ("authentication" in error_msg or "401" in error_msg or "api key" in error_msg) and len(clients) > 1:
                 continue
+
             raise e
 
     if last_error:
