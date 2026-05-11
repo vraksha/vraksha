@@ -25,6 +25,7 @@ class SkillRegistry:
                 skill.instructions = "No specific instructions provided."
 
             self.skills[skill.name] = skill
+            logger.info(f"✅ Loaded skill: {skill.name}")
 
     def as_skills(self) -> list[dict]:
         return [
@@ -37,7 +38,7 @@ class SkillRegistry:
         ]
 
     def get(self, name: str) -> "Skill | None":
-        return next((s for s in self.skills if s.name == name), None)
+        return self.skills.get(name)
 
 skill_registry = SkillRegistry()
 

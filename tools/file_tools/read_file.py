@@ -1,11 +1,14 @@
-from src.tools.base import Tool
+import logging
 
+logger = logging.getLogger(__name__)
+
+from tools.base import Tool
+from tools.resolve.resolve_within_project import resolve_path
+from tools.resolve.resolve_result import ResolveResult
 from src.utils.get_tree import get_tree
-from src.tools.file_tools.resolve.resolve_within_project import resolve_path
 
 class ReadFile(Tool):
     name = "read_file"
-    action = "reading"
     description = (
             "Read a file or list a directory inside the project. "
             "If `path` is a file, returns its full UTF-8 text content. "
@@ -42,31 +45,66 @@ class ReadFile(Tool):
         path_str = tool_input.get("path", "")
         max_depth = tool_input.get("max_depth", 3)
         
-        result = resolve_path(path_str)
-        if not result.success:
-            return f"ERROR: {result.error}"
+        res = resolve_path(path_str)
+        if not res.success:
+            error=f"ERROR: {res.error}"
+            return ResolveResult(
+                success=False,
+                error=error
+            )
+            logger.error(error)
 
-        target = result.path
+        target = res.result
 
         if not target.exists():
-            return f"ERROR: Path '{path_str}' does not exist."
+            error=f"ERROR: Path '{path_str}' does not exist."
+            return ResolveResult(
+                success=False,
+                error=error
+            )
+            logger.error(error)
 
         if target.is_dir():
             try:
                 tree = get_tree(target, max_depth)
-                return f"DIRECTORY: {path_str}\n{tree}"
+                output=f"DIRECTORY: {path_str}\n{tree}"
+                return ResolveResult(
+                    success=True,
+                    result=output
+                )
+                logger.info(output)
+
             except Exception as e:
-                return f"ERROR: Could not list directory: {e}"
+                error=f"ERROR: Could not list directory: {e}"
+                return ResolveResult(
+                    success=False,
+                    error=error
+                )
+                logger.error(error)
 
         try:
             content = target.read_text(encoding="utf-8")
-            return f"FILE: {path_str}\n{content}"
+            output=f"FILE: {path_str}\n{content}"
+            return ResolveResult(
+                success=True,
+                result=output
+            )
+            logger.info(output)
 
         except UnicodeDecodeError:
-            return f"ERROR: '{path_str}' is a binary file (non-UTF-8)."
+            error=f"ERROR: '{path_str}' is a binary file (non-UTF-8)."
+            return ResolveResult(
+                success=False,
+                error=error
+            )
+            logger.error(error)
             
         except Exception as e:
-            return f"ERROR: Failed to read file: {e}"
+            error=f"ERROR: Failed to read file: {e}"
+            return ResolveResult(
+                success=False,
+                error=error
+            )
 
 def get_tool() -> Tool:
     return ReadFile()

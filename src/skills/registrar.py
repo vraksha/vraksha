@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 import importlib.util as util
 from pathlib import Path
 
@@ -18,7 +22,8 @@ def register_skills():
             spec.loader.exec_module(module)
             
             md_path = skill_file.parent / "SKILL.md"
-            
+            logger.info(f"Skill '{rel_name}'s file detected at '{md_path}'")
+
             yield {
                 "module": module,
                 "instruction_path": md_path if md_path.exists() else None

@@ -1,11 +1,14 @@
-from src.tools.base import Tool
+import logging
 
+logger = logging.getLogger(__name__)
+
+from tools.base import Tool
+from tools.resolve.resolve_within_project import resolve_path
+from tools.resolve.resolve_result import ResolveResult
 from src.utils.immutables import is_immutable
-from src.tools.file_tools.resolve.resolve_within_project import resolve_path
 
 class WriteFile(Tool):
     name = "write_file"
-    action = "writing"
     description = (
                 "Write `content` to a file inside the project. Supports 'overwrite' "
                 "(default) and 'append' modes. Creates the file and parent directories "
@@ -43,15 +46,31 @@ class WriteFile(Tool):
 
         result = resolve_path(path_str)
         if not result.success:
-            return f"ERROR: {result.error}"
+            error=f"ERROR: {result.error}"
+            return ResolveResult(
+                success=False,
+                error=error
+            )
+            logger.error(error)
 
         target = result.path
 
         if is_immutable(target):
-            return f"BLOCKED: '{path_str}' is immutable."
+            error=f"BLOCKED: '{path_str}' is immutable."
+            return ResolveResult(
+                success=False,
+                error=error
+            )
+            logger.error(error)
+            
 
         if target.exists() and target.is_dir():
-            return f"ERROR: '{path_str}' is a directory, not a file."
+            error=f"ERROR: '{path_str}' is a directory, not a file."
+            return ResolveResult(
+                success=False,
+                error=error
+            )
+            logger.error(error)
 
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -63,10 +82,20 @@ class WriteFile(Tool):
 
             action = "overwrote" if mode == "overwrite" else "appended to"
             
-            return f"OK: {action} {len(content)} chars to {path_str}"
+            output=f"OK: {action} {len(content)} chars to {path_str}"
+            return ResolveResult(
+                success=True,
+                result=output
+            )
+            logger.info(output)
 
         except Exception as e:
-            return f"ERROR: failed to write to '{path_str}': {e}"
+            error=f"ERROR: failed to write to '{path_str}': {e}"
+            return ResolveResult(
+                success=False,
+                error=error
+            )
+            logger.error(error)
 
 
 def get_tool() -> Tool:

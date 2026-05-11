@@ -1,4 +1,4 @@
-from src.utils.client import client_info
+from src.providers.client import client_info
 import json
 
 

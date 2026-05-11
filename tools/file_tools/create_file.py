@@ -1,10 +1,13 @@
-from src.tools.base import Tool
+import logging
 
-from src.tools.file_tools.resolve.resolve_within_project import resolve_path
+logger = logging.getLogger(__name__)
+
+from tools.base import Tool
+from tools.resolve.resolve_within_project import resolve_path
+from tools.resolve.resolve_result import ResolveResult
 
 class CreateFile(Tool):
     name = "create_file"
-    action = "creating"
     description = (
                 "Create a NEW file with `content`. Fails if the file already exists. "
                 "Creates parent directories as needed. Use this for creating "
@@ -32,20 +35,42 @@ class CreateFile(Tool):
 
         result = resolve_path(path_str)
         if not result.success:
-            return f"ERROR: {result.error}"
+            error=f"ERROR: {result.result}"
+            return ResolveResult(
+                success=False,
+                error=error
+            )
+            logger.error(error)
 
         target = result.path
 
         if target.exists():
-            return f"ERROR: file '{path_str}' already exists. Use 'write_file' to modify it."
+            error=f"ERROR: file '{path_str}' already exists. Use 'write_file' to modify it."
+            return ResolveResult(
+                success=False,
+                error=error
+            )
+            logger.error(error)
 
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
-            return f"OK: created file {path_str} ({len(content)} chars)"
+
+            output=f"OK: created file {path_str} ({len(content)} chars)"
+
+            return ResolveResult(
+                success=True,
+                result=output
+            )
+            logger.info(output)
             
         except Exception as e:
-            return f"ERROR: failed to create '{path_str}': {e}"
+            error=f"ERROR: failed to create '{path_str}': {e}"
+            return ResolveResult(
+                success=False,
+                error=error
+            )
+            logger.error(error)
 
 
 def get_tool() -> Tool:

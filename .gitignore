@@ -14,6 +14,6 @@ memory/**/*
 # !memory/rules.md
 # !memory/soul.md
 !memory/IMMUTABLE.yaml
-
+FUTURE_SELF_REVIEW_PLAN.md
 # Documentation
 docs/

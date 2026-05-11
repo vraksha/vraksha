@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
 import json
-from anthropic import Anthropic
-from openai import OpenAI
 
 class ContentBlock:
     def __init__(self, block_type, text=None, id=None, name=None, input=None, tool_use_id=None, content=None):

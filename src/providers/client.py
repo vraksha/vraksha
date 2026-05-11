@@ -1,11 +1,13 @@
 from anthropic import Anthropic
 from openai import OpenAI
-from src.utils.api_keys import get_api_key
 
 import yaml
-from pathlib import Path
 
-_CONFIG_PATH = Path(__file__).parent.parent.parent / "models.yaml"
+from src.utils.api_keys import get_api_key
+from get_root import root
+
+
+_CONFIG_PATH = (root.project) / "models.yaml"
 
 _model_cache = None
 

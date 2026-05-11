@@ -1,9 +1,14 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 import importlib.util as util
-from pathlib import Path
 
-TOOLS_DIR = Path(__file__).parent
+from get_root import root
 
-FILES_TO_IGNORE = ["base.py", "registrar.py", "registry.py", "__init__.py"]
+TOOLS_DIR = (root.project) / "tools"
+
+FILES_TO_IGNORE = ["base.py", "registrar.py", "registry.py", "__init__.py", "command_tool.py", "create_sandbox.py"]
 
 def discover_tools():
     for tool_file in TOOLS_DIR.rglob("*.py"):

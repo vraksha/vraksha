@@ -2,8 +2,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from src.tools.registrar import register_tools
-from src.tools.base import Tool
+from tools.registrar import register_tools
+from tools.base import Tool
 
 class ToolRegistry:
     def __init__(self):
@@ -27,7 +27,6 @@ class ToolRegistry:
         return [
             {
                 "name": t.name,
-                "action": t.action,
                 "description": t.description,
                 "input_schema": t.input_schema
             }

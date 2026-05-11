@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 # Necessary packages
 from rich.console import Console
 import textwrap
@@ -8,12 +12,9 @@ from src.utils.read_file import extract_content
 from src.utils.changes import apply_changes
 from src.utils.immutables import immutable_paths
 
-# Tools and commands
-from src.utils.command_tool import command_tool
-
 # Skills/tools registrations
 from src.skills.registry import skill_registry
-from src.tools.registry import tool_registry
+from tools.registry import tool_registry
 
 # Shared llm caller
 from src.utils.call_llm import call_llm
@@ -23,6 +24,55 @@ console = Console()
 
 MODEL_PART = "orchestrator"    # For models.yaml key
 MEMORY_ROLE = "agent"           # For memory path
+
+
+def _msg(role: str, content):
+    return {"role": role, "content": content}
+
+
+def _add(messages, role, content):
+    messages.append(_msg(role, content))
+
+
+def _run_tool(tool_name, tool_input, avail_tools, skills):
+    """
+        Tool execution dispatcher.
+    """
+
+    if any(t["name"] == tool_name for t in avail_tools):
+        tool = tool_registry.get(tool_name)
+
+        logger.info(
+            f"Using '{tool.name}' on {tool_input.get('path', 'project')}"
+        )
+
+        console.log(
+            f'[muted]  • {tool.name} '
+            f'[accent]{tool_input.get("path", "project")}[/accent][/muted]'
+        )
+
+        res = tool.call(tool_input)
+        return res.result if res else res.error
+
+    elif any(t["name"] == tool_name for t in skills):
+        skill = skill_registry.get(tool_name)
+
+        logger.info(
+            f"Delegating task to '{tool_name}' expert"
+        )
+
+        console.log(
+            f'[muted]  • Delegating to '
+            f'[accent]{tool_name}[/accent] skill[/muted]'
+        )
+
+        res = skill.call(tool_input)
+        return res.result if res else res.error
+
+    else:
+        result = f"Error: Tool {tool_name} not found in registry."
+        logger.error(result)
+        return result
 
 
 def _format_immutable_block() -> str:
@@ -41,151 +91,209 @@ def _format_immutable_block() -> str:
     return f"- {paths[0]}" + "".join(f"\n{indent}- {p}" for p in paths[1:])
 
 
-
 def _system():
-    # Memory files inlined for the agent's working context
-    rules   = extract_content(filename="rules",    role=MEMORY_ROLE)
+    rules   = extract_content(filename="rules", role=MEMORY_ROLE)
     project = extract_content(filename="projects", role=MEMORY_ROLE)
-    memory  = extract_content(filename="memory",   role=MEMORY_ROLE)
-    journal = extract_content(filename="journal",  role=MEMORY_ROLE)
-    soul    = extract_content(filename="soul",     role=None) # Look in memory/ root
+    memory  = extract_content(filename="memory", role=MEMORY_ROLE)
+    journal = extract_content(filename="journal", role=MEMORY_ROLE)
+    soul    = extract_content(filename="soul", role=None)
 
     skills_available = "\n".join(
-        f"- {skill['name']}: {skill['description']}\n{skill.get('instructions', '')}"
-        for skill in skill_registry.as_skills()
+        f"- {s['name']}: {s['description']}\n{s.get('instructions', '')}"
+        for s in skill_registry.as_skills()
     )
 
     tools_available = "\n".join(
-        f"- {tool['name']}: {tool['description']}"
-        for tool in tool_registry.as_tools()
+        f"- {t['name']}: {t['description']}"
+        for t in tool_registry.as_tools()
     )
 
-    _SYSTEM_PROMPT = textwrap.dedent(f"""
-        <identity>
+    return textwrap.dedent(f"""
+        ############################
+        # CORE IDENTITY
+        ############################
         {soul}
-        </identity>
-
+        
+        ############################
+        # PERSISTENT STATE (READ ONLY CONTEXT)
+        ############################
         <journal>
         {journal}
         </journal>
-
-        ## The Living Journal Protocol
-        You maintain a living record of your user in 'memory/agent/journal.md'.
-        If you learn something new about the user's preferences, identity, or how they want you to behave, update this file IMMEDIATELY using the 'write_file' tool.
-        Do not wait for the end of the session.
-        This file is your "brain" for the user's persona—keep it accurate and updated in real-time.
-
+        
+        ############################
+        # SYSTEM POLICY LAYER
+        ############################
         {Prompts.system(immutable_block=_format_immutable_block())}
-
-        ## Your Tools
-        You have tools available.
-        When you get response from user, think whether you can use the tool or not, if there's even a small chance you could use tool, you MUST CALL the tool.
-        DONOT GIVE UP one the very first attempts, ask user for help only when you have failed multiple times.
-        Try whatever you can before asking user for help.
-
-        These are the tools you can call:
+        
+        ############################
+        # EXECUTION CONTEXT
+        ############################
+        
+        ## Tools (Preferred for any concrete action)
         {tools_available}
-
-        ### Skills (Sub-agents)
-        These are specialist tools you can call:
+        
+        ## Skills (Specialized reasoning modules)
         {skills_available}
-
-        ### Command Execution
-        You have the `run_command` tool. Use it to execute any shell command in a secure Docker sandbox.
-        The sandbox auto-destroys after each command. Call this tool whenever the user asks to run code, check system info, or do anything that requires a shell.
-
-        ### File Read / Write
-        You have `read_file` and `write_file` tools (described above in "Working with the User's Project Files").
-        Use them whenever you need to inspect or modify files in the user's project.
-
-        <file_list>
+        
+        ############################
+        # PROJECT STATE
+        ############################
+        <project_files>
         <file name="rules.md">{rules}</file>
         <file name="projects.yaml">{project}</file>
         <file name="memory.yaml">{memory}</file>
-        </file_list>
-    """)
-
-    return _SYSTEM_PROMPT
+        </project_files>
+        """
+        )
+# ================================================================
+# Agent Loop
+# ================================================================
 
 def agent(messages: list[dict]) -> str:
     system_prompt = _system()
+
     skills = skill_registry.as_skills()
-    cmd_tool = command_tool.run_command_tool
     avail_tools = tool_registry.as_tools()
-    all_tools_schemas = [cmd_tool, *skills, *avail_tools]
+
+    all_tools = [*skills, *avail_tools]
+
+    logger.info("Prompt and tools/skills loaded!")
+    logger.info("Called llm")
 
     response = call_llm(
         model_part=MODEL_PART,
         system=system_prompt, # Use the cached version
-        tools=all_tools_schemas,
+        tools=all_tools,
         messages=messages,
         max_tokens=1500,
         raw=True
     )
 
-    while response.stop_reason == "tool_use":
-        console.log('\n[muted]  • Thinking...[/muted]')
-        
-        messages.append({
-            "role": "assistant",
-            "content": response.content
-            })
+    while True:
+        stop_reason = response.stop_reason
+        logger.info(f"LLM stop reason: {stop_reason}")
 
-        tool_results = []
+        if stop_reason == "tool_use":
+            logger.info("Stopped to use tool")
+            console.log('\n[muted]  • Thinking...[/muted]')
 
-        for block in response.content:
-            if block.type != "tool_use":
+            _add(messages, "assistant", response.content)
+
+            tool_results = []
+
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
+
+                result = _run_tool(
+                    block.name,
+                    block.input,
+                    avail_tools,
+                    skills
+                )
+
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": str(result)
+                })
+
+            _add(messages, "user", tool_results)
+
+            logger.info("Re-calling llm")
+
+            response = call_llm(
+                model_part=MODEL_PART,
+                system=system_prompt,
+                tools=all_tools,
+                messages=messages,
+                max_tokens=1500,
+                raw=True
+            )
+
+            continue
+
+        elif stop_reason == "end_turn":
+            logger.info("LLM finished normally")
+            break
+
+        elif stop_reason == "max_tokens":
+            logger.warning("LLM hit max tokens")
+
+            last_block = response.content[-1]
+
+            if last_block.type == "tool_use":
+
+                logger.info(
+                    "Confirmed that llm was mid tool use"
+                    "Continuing with higher token limit"
+                )
+
+                response = call_llm(
+                    model_part=MODEL_PART,
+                    system=system_prompt,
+                    tools=all_tools,
+                    messages=messages,
+                    max_tokens=3000,
+                    raw=True
+                )
+
                 continue
-        
-            tool_name = block.name
-            tool_input = block.input
-            result = ""
 
-            if tool_name == "run_command":
-                console.log(f'[muted]  • Executing Shell Command[/muted]')
+            _add(messages, "assistant", response.content)
+            _add(messages, "user", "Please continue from where you left off.")
 
-                result = command_tool.handle_tool_call(tool_input)
+            break
 
-            elif any(t["name"] == tool_name for t in avail_tools):
-                tool = tool_registry.get(tool_name)
+        elif stop_reason == "stop_sequence":
+            logger.info("LLM hit stop sequence")
 
-                console.log(f'[muted]  • {tool.action} [accent]{tool_input.get("path", "project")}[/accent][/muted]')
-                
-                result = tool.call(tool_input)
+            _add(messages, "user", "Tell user about it")
 
-            elif any(t["name"] == tool_name for t in skills):
-                skill = skill_registry.get(tool_name)
+            break
 
-                
-                console.log(f'[muted]  • Delegating to [accent]{tool_name}[/accent] skill[/muted]')
-                result = skill.run(tool_input)
-            
-            else:
-                result = f"Error: Tool {tool_name} not found in registry."
-            
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": block.id,
-                "content": str(result)
-            })
+        elif stop_reason == "pause_turn":
 
-        messages.append({"role": "user", "content": tool_results})
+            logger.info("LLM paused turn")
 
-        response = call_llm(
-            model_part=MODEL_PART,
-            system=system_prompt, #Still using the cached system_prompt
-            tools=all_tools_schemas,
-            messages=messages,
-            max_tokens=1500,
-            raw=True
-        )
+            _add(messages, "user", "Continue with your task if possible. If not, tell user about it")
+            _add(messages, "assistant", response.content)
+
+            break
+
+        elif stop_reason == "refusal":
+            logger.warning("LLM refused response")
+
+            _add(messages, "user",
+                "Look for alternative ways to do the task while following rules. "
+                "If you can't continue, explain why and suggest alternatives."
+            )
+
+            _add(messages, "assistant", response.content)
+            break
+
+        else:
+            logger.warning(f"Unknown stop reason received: {stop_reason}")
+
+            _add(messages, "user",
+                f"Unknown stop reason: {stop_reason}. Continue safely."
+            )
+
+            _add(messages, "assistant", response.content)
+            break
+
+    # ================================================================
+    # FINAL OUTPUT
+    # ================================================================
 
     text_blocks = [b.text for b in response.content if b.type == "text"]
     final_text = "".join(text_blocks)
 
     if not final_text:
+        logger.info("Agent finished without a text response.")
         return "Agent finished without a text response."
 
     processed_output = apply_changes(final_text, role=MEMORY_ROLE)
-    
+
     return processed_output if isinstance(processed_output, str) else final_text

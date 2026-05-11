@@ -317,7 +317,7 @@ def run_loop(
             })
 
         with console.status(
-            f"[muted italic]  she is thinking[/muted italic]",
+            f"[muted italic]  Thinking[/muted italic]",
             spinner="dots",
             spinner_style="accent",
         ):

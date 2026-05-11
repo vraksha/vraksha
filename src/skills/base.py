@@ -10,6 +10,6 @@ class Skill(ABC):
     }
 
     @abstractmethod
-    def run(self, tool_input: dict) -> str:
+    def call(self, tool_input: dict) -> str:
         pass
 

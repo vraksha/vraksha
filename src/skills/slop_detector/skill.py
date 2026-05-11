@@ -14,7 +14,7 @@ class SlopDetectorSkill(Skill):
         "required": ["url"]
     }
 
-    def run(self, tool_input: dict) -> str:
+    def call(self, tool_input: dict) -> str:
         repo_url = tool_input.get("url", "")
         user_prompt = tool_input.get("user_prompt", "analyze this repo")
         
