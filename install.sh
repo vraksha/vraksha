@@ -30,7 +30,7 @@ if [ ! -f "$INSTALL_DIR/.env.local" ]; then
 fi
 
 echo "Building Vraksha Docker image (this may take a minute)..."
-docker build -t vraksha "$INSTALL_DIR"
+docker build -t vraksha-runtime "$INSTALL_DIR"
 
 
 echo ""

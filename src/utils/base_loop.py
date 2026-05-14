@@ -261,17 +261,16 @@ def _call_llm_only(llm_fn, messages) -> str:
 
 
 def _run_memory_sync(llm_fn, messages, goodbye: str):
-    """Commit the session to memory and print the farewell block."""
+    """Commit the session to local indexed memory and print the farewell block."""
     with console.status(
         f"[accent_lit]  she is committing this to memory[/accent_lit]",
         spinner="dots",
         spinner_style="accent_lit",
     ):
-        messages.append({
-            "role": "user",
-            "content": "Finalize: summarize session into memory.yaml and update projects.yaml.",
-        })
-        final = llm_fn(messages)
+        from src.memory.consolidation import run_consolidation
+
+        run_consolidation(list(messages))
+        final = "Session consolidated into local indexed memory."
 
     _print_memory_sync(final)
     console.print(

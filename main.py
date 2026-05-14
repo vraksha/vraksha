@@ -22,8 +22,16 @@ from src.agent.loop import run_agent
 def surprise_function():
     logger.info("Hey you! 🎉 This isn't just a surprise — it's a whole celebration! 🌟 Whenever life throws a glitch your way, code your own path and dance it out!")
 
-# AI Agent Note: This file was edited to demonstrate a Git commit.
-
 if __name__ == "__main__":
-    run_agent()
-    surprise_function()
+    try:
+        run_agent()
+
+    except KeyboardInterrupt:
+        logger.info("Session interrupted by user.")
+
+    except Exception as e:
+        logger.exception(f"Fatal error during execution: {e}")
+        
+    finally:
+        surprise_function()
+        logger.info("--- Vraksha Session Ended ---")

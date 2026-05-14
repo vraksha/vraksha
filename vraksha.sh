@@ -153,9 +153,16 @@ if ! command -v docker &> /dev/null; then
 fi
 
 # Try to start docker if it's idle
-if ! systemctl is-active --quiet docker; then
-    printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting docker service...${NC}\n"
-    sudo systemctl start docker
+if command -v systemctl &> /dev/null && systemctl is-system-running &> /dev/null; then
+    if ! systemctl is-active --quiet docker; then
+        printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting docker service (systemd)...${NC}\n"
+        sudo systemctl start docker
+    fi
+elif command -v service &> /dev/null; then
+    if ! service docker status &> /dev/null; then
+        printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting docker service (wsl/sysvinit)...${NC}\n"
+        sudo service docker start
+    fi
 fi
 
 # Check permissions
@@ -165,6 +172,28 @@ if ! docker info &> /dev/null; then
     sudo usermod -aG docker $USER
     printf "  ${Y}!${NC}  ${T}Please run:${NC} ${B}newgrp docker${NC} ${T}then try again.${NC}\n"
     exit 1
+fi
+
+# -------------------------------------------------
+# 5️⃣  Ensure the Vraksha container is running
+# -------------------------------------------------
+# Docker is now guaranteed to be active, so we can safely
+# query the compose project.
+COMPOSE_PROJECT_NAME="vraksha"
+
+
+
+# See if a container from this compose project is already up
+if ! docker ps --filter "name=${COMPOSE_PROJECT_NAME}" --format "{{.Names}}" | grep -q .; then
+    printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting Vraksha container…${NC}\n"
+    # Start container without forcing rebuild unless user asked
+    if [ "$FORCE_BUILD" = true ]; then
+        docker compose up -d --build
+    else
+        docker compose up -d
+    fi
+else
+    printf "  ${G}${GL_CHECK}${NC}  ${M}Vraksha container already running${NC}\n"
 fi
 
 # System Link Validation
@@ -187,9 +216,9 @@ done
 
 if [ "$ENV_FOUND" = false ]; then
     if [ -f ".env.example" ]; then
-        cp .env.example .env.local
-        printf "  ${G}${GL_CHECK}${NC}  ${T}created${NC} ${B}.env.local${NC} ${M}from template${NC}\n"
-        printf "  ${Y}${GL_ARROW}${NC}  ${M}edit ${NC}${B}.env.local${NC}${M} with your api keys before running again${NC}\n\n"
+        cp .env.example .env
+        printf "  ${G}${GL_CHECK}${NC}  ${T}created${NC} ${B}.env${NC} ${M}from template${NC}\n"
+        printf "  ${Y}${GL_ARROW}${NC}  ${M}edit ${NC}${B}.env${NC}${M} with your api keys before running again${NC}\n\n"
         exit 0
     else
         printf "  ${R}✗${NC}  ${B}missing environment file${NC}  ${M}in ${SCRIPT_DIR}${NC}\n\n"

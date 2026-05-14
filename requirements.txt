@@ -11,3 +11,4 @@ kuzu
 google-genai
 prompt-toolkit
 typing
+qdrant_client

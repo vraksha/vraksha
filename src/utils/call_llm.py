@@ -213,8 +213,17 @@ def call_llm(
             last_error = e
             error_msg = str(e).lower()
 
-            # If it's an authentication error and we have more clients to try, continue
-            if ("authentication" in error_msg or "401" in error_msg or "api key" in error_msg) and len(clients) > 1:
+            # Check for common API errors: Auth, Quota, Rate Limit, Credits, Server Errors
+            fallback_keywords = [
+                "401", "402", "403", "429", "500", "502", "503", 
+                "authentication", "api key", "quota", "credit", 
+                "rate limit", "balance", "insufficient", "payment", "billing"
+            ]
+            
+            if any(kw in error_msg for kw in fallback_keywords) and len(clients) > 1:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"API Provider '{client_name}' failed with an error. Falling back to the next available provider... (Error: {e})")
                 continue
 
             raise e

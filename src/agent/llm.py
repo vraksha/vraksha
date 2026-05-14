@@ -8,9 +8,10 @@ import textwrap
 
 # Custom modules
 from src.agent.prompts import Prompts
-from src.utils.read_file import extract_content
+# from src.utils.read_file import extract_content
 from src.utils.changes import apply_changes
 from src.utils.immutables import immutable_paths
+from src.memory.coordinator import memory_coordinator
 
 # Skills/tools registrations
 from src.skills.registry import skill_registry
@@ -91,12 +92,8 @@ def _format_immutable_block() -> str:
     return f"- {paths[0]}" + "".join(f"\n{indent}- {p}" for p in paths[1:])
 
 
-def _system():
-    rules   = extract_content(filename="rules", role=MEMORY_ROLE)
-    project = extract_content(filename="projects", role=MEMORY_ROLE)
-    memory  = extract_content(filename="memory", role=MEMORY_ROLE)
-    journal = extract_content(filename="journal", role=MEMORY_ROLE)
-    soul    = extract_content(filename="soul", role=None)
+def _system(user_query: str = ""):
+    essential_memory = memory_coordinator.get_essential_context(user_query)
 
     skills_available = "\n".join(
         f"- {s['name']}: {s['description']}\n{s.get('instructions', '')}"
@@ -110,16 +107,9 @@ def _system():
 
     return textwrap.dedent(f"""
         ############################
-        # CORE IDENTITY
+        # ESSENTIAL MEMORY
         ############################
-        {soul}
-        
-        ############################
-        # PERSISTENT STATE (READ ONLY CONTEXT)
-        ############################
-        <journal>
-        {journal}
-        </journal>
+        {essential_memory}
         
         ############################
         # SYSTEM POLICY LAYER
@@ -135,15 +125,6 @@ def _system():
         
         ## Skills (Specialized reasoning modules)
         {skills_available}
-        
-        ############################
-        # PROJECT STATE
-        ############################
-        <project_files>
-        <file name="rules.md">{rules}</file>
-        <file name="projects.yaml">{project}</file>
-        <file name="memory.yaml">{memory}</file>
-        </project_files>
         """
         )
 # ================================================================
@@ -151,7 +132,13 @@ def _system():
 # ================================================================
 
 def agent(messages: list[dict]) -> str:
-    system_prompt = _system()
+    last_user_query = ""
+    for message in reversed(messages):
+        if message.get("role") == "user":
+            content = message.get("content", "")
+            last_user_query = content if isinstance(content, str) else str(content)
+            break
+    system_prompt = _system(last_user_query)
 
     skills = skill_registry.as_skills()
     avail_tools = tool_registry.as_tools()

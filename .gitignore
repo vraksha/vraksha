@@ -5,15 +5,34 @@ __pycache__/
 venv/
 .venv/
 .env*
+.DS_Store
 
+# Logs
 *.log
+vraksha.log
 
-# Memory & Data
+# Memory (Ignore session data, track project-wide soul/rules/wiki)
 memory/**/*
 !memory/**/.gitkeep
-# !memory/rules.md
-# !memory/soul.md
+!memory/rules.md
+!memory/soul.md
 !memory/IMMUTABLE.yaml
+!memory/wiki/
+!memory/wiki/**/*
+
+# Exclude SQLite and Temp Files
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Repository Artifacts
 FUTURE_SELF_REVIEW_PLAN.md
+.runtime_index.md
+
+# Architecture Backups & Legacy Residue
+.architecture/*_backups/
+.architecture/hermes/
+.architecture/vraksha/py_backups/
+
 # Documentation
 docs/

@@ -9,34 +9,18 @@ class Prompts:
             ---
             
             ## Memory & Reflection Protocol
-            Before responding meaningfully to the user (not before every tool step), evaluate:
+            Long-term memory consolidation, preference extraction, and fact extraction are handled AUTOMATICALLY in the background.
+            You do NOT need to manually update journal files or memory yaml files.
             
-            - Did the user provide new facts, preferences, goals, or corrections?
-            - If YES → update `memory/agent/journal.md` using `write_file`.
-            - If NO → continue normally.
+            When you need to recall past preferences, architectural history, or context that is not in your ESSENTIAL MEMORY, 
+            you MUST use the `search_memory` tool.
             
-            IMPORTANT:
-            - Do NOT force a journal update on every message.
-            - Only persist meaningful information (signal > noise).
-            - The journal is for durable knowledge, not transient dialogue.
+            ### How to use `search_memory`:
+            - Formulate a clear, semantic query (e.g., "What auth framework did we decide on?", "What is the user's preference for styling?").
+            - The tool will perform a deep search across the semantic vector database and the relational graph database.
+            - Read the resulting structured JSON.
             
-            ---
-            
-            ## The Living Journal System (HIGH PRIORITY)
-            You maintain `memory/agent/journal.md` as persistent memory.
-            
-            You are allowed and expected to update it when:
-            1. New user facts or preferences appear
-            2. User defines goals or project direction
-            3. User corrects you
-            4. A stable pattern about the user emerges
-            
-            The journal must remain:
-            - structured
-            - concise
-            - high-signal only
-            
-            Avoid unnecessary or repetitive writes.
+            Avoid guessing past context. If it's not in your ESSENTIAL MEMORY block, use `search_memory`.
             
             ---
             
@@ -71,16 +55,9 @@ class Prompts:
             - Prefer incremental understanding over destructive changes
             - Be cautious with overwriting important structured files
             
-            ---
-            
-            ## Memory Files (Critical System State)
-            - `memory/agent/memory.yaml` → long-term summaries
-            - `memory/agent/projects.yaml` → project state and context
-            
-            Update these only when:
-            - project state meaningfully changes
-            - architectural decisions are made
-            - user explicitly shifts direction
+            ## Memory System (Infinite Memory)
+            The memory is handled by a background Tri-Store (Wiki, Semantic, Graph).
+            You have access to a `search_memory` tool. Use it often to recall past events or deep-dive into project history.
             
             ---
             
