@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from abc import ABC
+# from abc import ABC
 from typing import Any, Dict, Sequence
 
 from src.memory.local_index import LocalFirstMemory, MemoryRecord, get_memory

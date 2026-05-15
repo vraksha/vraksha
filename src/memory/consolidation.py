@@ -24,52 +24,61 @@ from src.utils.call_llm import call_llm
 logger = logging.getLogger(__name__)
 
 CONSOLIDATION_PROMPT = """
-You are the Memory Consolidation Agent for Vraksha.
-Analyze the provided transcript and extract only DURABLE, HIGH-SIGNAL information.
+    You are the Memory Consolidation Agent for Vraksha.
+    Analyze the provided transcript and extract only DURABLE, HIGH-SIGNAL information.
 
-Categories:
-1. Rules: Absolute constraints or instructions explicitly mandated by the user.
-2. Preferences: Subtle but stable user likes/dislikes (e.g., coding style, tool choice).
-3. Facts: Verified project details, architectural decisions, or state changes.
-4. Events: Significant session milestones worth historical recall.
+    Categories:
+    1. Rules: Absolute constraints or instructions explicitly mandated by the user.
+    2. Preferences: Subtle but stable user likes/dislikes (e.g., coding style, tool choice).
+    3. Facts: Verified project details, architectural decisions, or state changes.
+    4. Events: Significant session milestones worth historical recall.
 
-Filtering Strategy:
-- Ignore greetings, social filler, or temporary debug logs.
-- Collapse redundant items into a single clear statement.
-- Ensure all facts are grounded in the transcript.
+    Filtering Strategy:
+    - Ignore greetings, social filler, or temporary debug logs.
+    - Collapse redundant items into a single clear statement.
+    - Ensure all facts are grounded in the transcript.
 
-Return STRICT JSON:
-{
-  "rules": [], "preferences": [], "facts": [], "events": []
-}
+    Return STRICT JSON:
+    {
+      "rules": [], "preferences": [], "facts": [], "events": []
+    }
 """
 
 
 def _message_text(message: dict[str, Any]) -> str:
     """Safely extracts text content from various message formats (strings, lists, blocks)."""
     content = message.get("content", "")
+
     if isinstance(content, str):
         return content
+
     if isinstance(content, list):
         # Handle multi-part content (e.g., Anthropic/OpenAI list format)
         parts = []
+
         for part in content:
             if isinstance(part, dict):
                 parts.append(part.get("text", ""))
+
             elif isinstance(part, str):
                 parts.append(part)
+
         return " ".join(parts)
+
     return json.dumps(content, ensure_ascii=False, default=str)
 
 
 def build_transcript(messages: list[dict[str, Any]], *, max_messages: int = 30, max_chars: int = 15_000) -> str:
     """Constructs a clean, timestamped transcript for consolidation analysis."""
     lines = []
+
     for m in messages[-max_messages:]:
         role = str(m.get("role", "unknown")).upper()
         text = _message_text(m)
+
         if text.strip():
             lines.append(f"{role}: {text}")
+
     return "\n".join(lines)[-max_chars:]
 
 
@@ -80,6 +89,7 @@ def _extract_json(content: str) -> dict[str, Any]:
     """
     # 1. Try to find a JSON code block
     match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
+
     if match:
         content = match.group(1)
     
@@ -87,6 +97,7 @@ def _extract_json(content: str) -> dict[str, Any]:
     else:
         start = content.find("{")
         end = content.rfind("}")
+
         if start != -1 and end != -1:
             content = content[start : end + 1]
 
@@ -94,6 +105,7 @@ def _extract_json(content: str) -> dict[str, Any]:
         # Sanitize common LLM "sloppy" JSON quirks
         clean = re.sub(r"//.*", "", content)  # Remove single-line comments
         return json.loads(clean.strip())
+
     except json.JSONDecodeError as e:
         logger.error(f"Consolidation parser failed to decode LLM output: {e}\nRaw: {content}")
         return {"rules": [], "preferences": [], "facts": [], "events": []}
@@ -108,6 +120,7 @@ async def consolidate_session(messages: list[dict[str, Any]]) -> None:
         return
 
     transcript = build_transcript(messages)
+
     if not transcript.strip():
         return
 
@@ -170,6 +183,7 @@ def run_consolidation(messages: list[dict[str, Any]]) -> None:
         loop = asyncio.get_running_loop()
         # Fire-and-forget task in the background
         loop.create_task(consolidate_session(messages))
+        
     except RuntimeError:
         # Fallback for environments without a running loop
         asyncio.run(consolidate_session(messages))

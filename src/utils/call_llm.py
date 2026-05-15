@@ -1,3 +1,9 @@
+# ==============================================================================
+# DEPRECATED: This file is slated for removal.
+# Vraksha is transitioning to pydantic-ai for LLM orchestration.
+# Please refer to src/agent/engine.py for the new CNS logic.
+# ==============================================================================
+
 from src.providers.client import client_info
 import json
 
