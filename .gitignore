@@ -11,14 +11,12 @@ venv/
 *.log
 vraksha.log
 
-# Memory (Ignore session data, track project-wide soul/rules/wiki)
+# Memory (Ignore subfolder contents, track specific root files and .gitkeep)
 memory/**/*
 !memory/**/.gitkeep
 !memory/rules.md
 !memory/soul.md
 !memory/IMMUTABLE.yaml
-!memory/wiki/
-!memory/wiki/**/*
 
 # Exclude SQLite and Temp Files
 *.sqlite3
@@ -36,3 +34,6 @@ FUTURE_SELF_REVIEW_PLAN.md
 
 # Documentation
 docs/
+
+# Progress
+progress/
