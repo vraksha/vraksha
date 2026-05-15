@@ -5,7 +5,6 @@ logger = logging.getLogger(__name__)
 import importlib.util as util
 from pathlib import Path
 
-
 SKILLS_DIR = Path(__file__).parent
 
 def discover_skills():
@@ -13,7 +12,7 @@ def discover_skills():
         yield skill_file
 
 def register_skills():
-    for skill_file in SKILLS_DIR.rglob("*/skill.py"):
+    for skill_file in discover_skills():
         rel_name = f"skill_{skill_file.parent.stem}"
         
         spec = util.spec_from_file_location(rel_name, skill_file)

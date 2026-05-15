@@ -14,7 +14,7 @@ from src.utils.immutables import immutable_paths
 from src.memory.coordinator import memory_coordinator
 
 # Skills/tools registrations
-from src.skills.registry import skill_registry
+from skills.registry import skill_registry
 from tools.registry import tool_registry
 
 # Shared llm caller

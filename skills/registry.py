@@ -2,9 +2,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
-from src.skills.registrar import register_skills
-from src.skills.base import Skill
+from skills.registrar import register_skills
+from skills.base import Skill
 
 class SkillRegistry:
     def __init__(self):

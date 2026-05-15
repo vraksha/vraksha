@@ -19,8 +19,10 @@ logger.info("--- Vraksha Session Started ---")
 
 from src.agent.loop import run_agent
 
-def surprise_function():
-    logger.info("Hey you! 🎉 This isn't just a surprise — it's a whole celebration! 🌟 Whenever life throws a glitch your way, code your own path and dance it out!")
+# This part was added by vraksha because it thought of suprising me, 
+# but I commented it out for now
+# def surprise_function():
+    # logger.info("Hey you! 🎉 This isn't just a surprise — it's a whole celebration! 🌟 Whenever life throws a glitch your way, code your own path and dance it out!")
 
 if __name__ == "__main__":
     try:
@@ -33,5 +35,5 @@ if __name__ == "__main__":
         logger.exception(f"Fatal error during execution: {e}")
         
     finally:
-        surprise_function()
+        # surprise_function()
         logger.info("--- Vraksha Session Ended ---")
