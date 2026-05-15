@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class VrakshaDeps:
     """
-    The Vraksha Moat: Dependencies injected into the PydanticAI Engine.
+    Dependencies are injected into the PydanticAI Engine.
     Ensures that the LLM operates within Vraksha's ethical and technical boundaries.
     """
     memory: MemoryCoordinator
