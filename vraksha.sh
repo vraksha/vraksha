@@ -38,17 +38,21 @@ PURGE=false
 # arguments
 for arg in "$@"; do
     case $arg in
-        -b|--build) FORCE_BUILD=true ;;
-        -c|--clean) CLEAN=true ;;
-        -p|--purge) PURGE=true ;;
-        -h|--help)
+        -b|--build|build) FORCE_BUILD=true ;;
+        -c|--clean|clean) CLEAN=true ;;
+        -p|--purge|purge) PURGE=true ;;
+        -h|--help|help)
             printf "\n  ${A}${B}${GL_LOGO}${NC}  ${B}${T}vraksha${NC}   ${M}CLI help${NC}\n"
             printf "  ${D}────────────────────────────────────────────────────────────────${NC}\n"
-            printf "  ${T}Usage:${NC} vraksha ${D}[options]${NC}\n\n"
+            printf "  ${T}Usage:${NC} vraksha ${D}[command/options]${NC}\n\n"
+            printf "  ${A}${B}Commands:${NC}\n"
+            printf "    ${T}build${NC}          ${M}Rebuild the runtime environment${NC}\n"
+            printf "    ${T}clean${NC}          ${M}Prune stopped containers and images${NC}\n"
+            printf "    ${T}purge${NC}          ${M}Full reset: remove all images and volumes${NC}\n\n"
             printf "  ${A}${B}Options:${NC}\n"
-            printf "    ${T}-b, --build${NC}    ${M}Force rebuild of the runtime environment${NC}\n"
-            printf "    ${T}-c, --clean${NC}    ${M}Prune stopped containers and dangling images${NC}\n"
-            printf "    ${T}-p, --purge${NC}    ${M}Full reset: remove all images and volumes${NC}\n"
+            printf "    ${T}-b, --build${NC}    ${M}Force rebuild (same as build command)${NC}\n"
+            printf "    ${T}-c, --clean${NC}    ${M}Clean environment (same as clean command)${NC}\n"
+            printf "    ${T}-p, --purge${NC}    ${M}Reset environment (same as purge command)${NC}\n"
             printf "    ${T}-h, --help${NC}     ${M}Show this help message${NC}\n"
             printf "\n"
             exit 0
@@ -184,16 +188,23 @@ COMPOSE_PROJECT_NAME="vraksha"
 
 
 # See if a container from this compose project is already up
+if docker ps --filter "name=${COMPOSE_PROJECT_NAME}" --format "{{.Names}}" | grep -q .; then
+    if [ "$FORCE_BUILD" = true ]; then
+        printf "  ${A}${GL_DIAMOND}${NC}  ${M}stopping existing containers for rebuild…${NC}\n"
+        docker compose down &>/dev/null
+    else
+        printf "  ${G}${GL_CHECK}${NC}  ${M}Vraksha container already running${NC}\n"
+    fi
+fi
+
+# Start container logic
 if ! docker ps --filter "name=${COMPOSE_PROJECT_NAME}" --format "{{.Names}}" | grep -q .; then
     printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting Vraksha container…${NC}\n"
-    # Start container without forcing rebuild unless user asked
     if [ "$FORCE_BUILD" = true ]; then
         docker compose up -d --build
     else
         docker compose up -d
     fi
-else
-    printf "  ${G}${GL_CHECK}${NC}  ${M}Vraksha container already running${NC}\n"
 fi
 
 # System Link Validation

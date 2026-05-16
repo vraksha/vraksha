@@ -1,5 +1,5 @@
 from src.utils.base_loop import run_loop
-from src.agent.llm import agent
+from src.agent.engine import agent_bridge as agent
 
 
 def run_agent():

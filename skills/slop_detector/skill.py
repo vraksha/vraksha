@@ -1,5 +1,9 @@
-from src.skills.base import Skill
-from src.skills.slop_detector.llm import detector_agent
+# ========================================
+# DEPRECATED
+# ========================================
+
+from skills.base import Skill
+from skills.slop_detector.llm import detector_agent
 
 class SlopDetectorSkill(Skill):
     name = "slop_detector"

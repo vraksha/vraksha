@@ -20,11 +20,14 @@ def get_api_key(provider: str) -> str:
 
 
     if provider.lower() == "anthropic":
-        return  os.getenv("ANTHROPIC_API_KEY")
+        return os.getenv("ANTHROPIC_API_KEY")
 
     elif provider.lower() == "openai":
         return os.getenv("OPENAI_API_KEY")
         
+    elif provider.lower() in ["google", "gemini"]:
+        return os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+        
     else:
-        raise ValueError("Invalid provider")
+        return os.getenv(f"{provider.upper()}_API_KEY")
 

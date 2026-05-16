@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 
 import importlib.util as util
 
-from tool_name import get_tool_name
+from tools.tool_name import get_tool_name
 
 from get_root import root
 

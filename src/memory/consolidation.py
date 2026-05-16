@@ -11,152 +11,117 @@ ephemeral noise (greetings, debug logs) and focuses on state changes.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import re
 from datetime import datetime
 from typing import Any
 
+from pydantic import BaseModel, Field
+from pydantic_ai.agent import Agent
 from src.memory.local_index import MemoryRecord
 from src.memory.coordinator import memory_coordinator
-from src.utils.call_llm import call_llm
 
 logger = logging.getLogger(__name__)
 
-CONSOLIDATION_PROMPT = """
-    You are the Memory Consolidation Agent for Vraksha.
-    Analyze the provided transcript and extract only DURABLE, HIGH-SIGNAL information.
+class ConsolidationResult(BaseModel):
+    """
+        Structured memories extracted from a session transcript.
+    """
+    rules: list[str] = Field(default_factory=list, description="Absolute constraints or mandates from the user.")
+    preferences: list[str] = Field(default_factory=list, description="User likes/dislikes and coding style preferences.")
+    facts: list[str] = Field(default_factory=list, description="Verified project details and architectural decisions.")
+    events: list[str] = Field(default_factory=list, description="Significant session milestones.")
 
-    Categories:
-    1. Rules: Absolute constraints or instructions explicitly mandated by the user.
-    2. Preferences: Subtle but stable user likes/dislikes (e.g., coding style, tool choice).
-    3. Facts: Verified project details, architectural decisions, or state changes.
-    4. Events: Significant session milestones worth historical recall.
+from pydantic_ai.models.test import TestModel
 
-    Filtering Strategy:
-    - Ignore greetings, social filler, or temporary debug logs.
-    - Collapse redundant items into a single clear statement.
-    - Ensure all facts are grounded in the transcript.
-
-    Return STRICT JSON:
-    {
-      "rules": [], "preferences": [], "facts": [], "events": []
-    }
-"""
-
+# Specialized agent for consolidation tasks
+# Initialized with a TestModel to prevent premature API key validation.
+consolidation_agent = Agent(
+    TestModel(),
+    result_type=ConsolidationResult,
+    system_prompt=(
+        "You are Vraksha's Memory Consolidation Agent. "
+        "Analyze the transcript and extract DURABLE, HIGH-SIGNAL information. "
+        "Ignore greetings, social filler, or temporary debug logs. "
+        "Collapse redundant items into clear, atomic statements."
+    )
+)
 
 def _message_text(message: dict[str, Any]) -> str:
-    """Safely extracts text content from various message formats (strings, lists, blocks)."""
+    """
+        Safely extracts text content from various message formats.
+    """
     content = message.get("content", "")
-
-    if isinstance(content, str):
-        return content
+    if isinstance(content, str): return content
 
     if isinstance(content, list):
-        # Handle multi-part content (e.g., Anthropic/OpenAI list format)
-        parts = []
+        return " ".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in content)
 
-        for part in content:
-            if isinstance(part, dict):
-                parts.append(part.get("text", ""))
-
-            elif isinstance(part, str):
-                parts.append(part)
-
-        return " ".join(parts)
-
-    return json.dumps(content, ensure_ascii=False, default=str)
-
+    return str(content)
 
 def build_transcript(messages: list[dict[str, Any]], *, max_messages: int = 30, max_chars: int = 15_000) -> str:
-    """Constructs a clean, timestamped transcript for consolidation analysis."""
-    lines = []
-
-    for m in messages[-max_messages:]:
-        role = str(m.get("role", "unknown")).upper()
-        text = _message_text(m)
-
-        if text.strip():
-            lines.append(f"{role}: {text}")
-
+    """
+        Constructs a clean, timestamped transcript for consolidation analysis.
+    """
+    lines = [f"{str(m.get('role', 'unknown')).upper()}: {_message_text(m)}" for m in messages[-max_messages:]]
     return "\n".join(lines)[-max_chars:]
 
-
-def _extract_json(content: str) -> dict[str, Any]:
-    """
-    Robust JSON extraction from LLM responses. Handles markdown blocks, 
-    inline comments, and trailing chatter.
-    """
-    # 1. Try to find a JSON code block
-    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
-
-    if match:
-        content = match.group(1)
-    
-    # 2. If no block, find the first '{' and last '}'
-    else:
-        start = content.find("{")
-        end = content.rfind("}")
-
-        if start != -1 and end != -1:
-            content = content[start : end + 1]
-
-    try:
-        # Sanitize common LLM "sloppy" JSON quirks
-        clean = re.sub(r"//.*", "", content)  # Remove single-line comments
-        return json.loads(clean.strip())
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Consolidation parser failed to decode LLM output: {e}\nRaw: {content}")
-        return {"rules": [], "preferences": [], "facts": [], "events": []}
-
-
 async def consolidate_session(messages: list[dict[str, Any]]) -> None:
+    """The 'Cognitive Sleep Cycle' for distilling chat history into durable memory.
+    
+    Raw conversation transcripts are extremely high-entropy environments full 
+    of social filler, greetings, and ephemeral debug noise. Feeding these 
+    transcripts back into the agent directly results in token bloat and a 
+    significant drop in reasoning quality.
+    
+    Consolidation is the process of 'Garbage Collection' for the brain. It 
+    uses a specialized sub-agent to analyze the transcript, extract high-signal 
+    facts, rules, and preferences, and commit them to their respective 
+    Tri-Store layers. This ensures that the agent's long-term memory 
+    remains dense, accurate, and relevant.
     """
-    Core consolidation routine. Extracts memories from the recent conversation
-    and saves them as a batched transaction in the memory layer.
-    """
-    if not messages:
-        return
-
+    if not messages: return
     transcript = build_transcript(messages)
+    if not transcript.strip(): return
 
-    if not transcript.strip():
+    from src.providers.client import get_model_priorities
+    model_chain = get_model_priorities("memory")
+
+    if not model_chain:
+        logger.error("❌ Consolidation failed: No API keys found.")
         return
 
-    try:
-        # Offload the LLM call to a thread to avoid blocking the event loop
-        response = await asyncio.to_thread(
-            call_llm,
-            model_part="orchestrator",
-            system=CONSOLIDATION_PROMPT,
-            messages=[{"role": "user", "content": f"Transcript:\n{transcript}"}],
-            max_tokens=1000,
-            raw=False,
-        )
-        
-        # Handle different LLM response object formats
-        content = response if isinstance(response, str) else "".join(
-            getattr(block, "text", "") for block in getattr(response, "content", [])
-        )
-        if not content.strip():
-            return
+    last_error = None
+    for model_inst in model_chain:
+        try:
+            logger.info(f"🌙 Starting consolidation with: {model_inst}")
 
-        data = _extract_json(content)
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        source_id = f"consolidation:{ts}"
-        
-        records = []
-        mapping = {
-            "rules": ("rule", 0.95),
-            "preferences": ("preference", 0.80),
-            "facts": ("fact", 0.75),
-            "events": ("episode", 0.60),
-        }
+            # Run the PydanticAI consolidation agent
+            result = await consolidation_agent.run(
+                f"Transcript:\n{transcript}",
+                model=model_inst
+            )
+            data = result.data
+            
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            source_id = f"consolidation:{ts}"
+            records = []
 
-        for key, (kind, trust) in mapping.items():
-            for item in data.get(key, []):
-                if isinstance(item, str) and item.strip():
+            # TRI-STORE CATEGORIZATION
+            category_map = {
+                "rules": ("rule", 0.95),
+                "preferences": ("preference", 0.80),
+                "facts": ("fact", 0.75),
+                "events": ("episode", 0.60),
+            }
+
+            from src.memory.wiki import wiki_layer
+            from src.memory.semantic_store import semantic_layer
+
+            for attr, (kind, trust) in category_map.items():
+                for item in getattr(data, attr):
+                    if not item.strip(): continue
+                    
+                    # 1. Save to standard SQLite Index (Mid-Term)
                     records.append(MemoryRecord(
                         source_id=source_id,
                         kind=kind,
@@ -166,18 +131,35 @@ async def consolidate_session(messages: list[dict[str, Any]]) -> None:
                         pinned=(kind == "rule"),
                     ))
 
-        if records:
-            await memory_coordinator.memory.remember_many(records)
-            logger.info(f"Successfully consolidated {len(records)} memories (batch: {source_id})")
+                    # 2. IF it's a RULE, commit to the Durable Wiki (Long-Term)
+                    if kind == "rule":
+                        wiki_layer.add(item.strip(), filename="rules.md", trust=trust, pinned=True)
+                        logger.info(f"📜 Rule committed to Wiki: {item.strip()[:50]}...")
 
-    except Exception:
-        logger.exception("Background memory consolidation failed")
+                    # 3. IF it's a PREFERENCE, commit to the Semantic Layer (Long-Term)
+                    if kind == "preference":
+                        semantic_layer.add(item.strip(), category="preference", trust=trust, session_id=source_id)
+                        logger.info(f"🧠 Preference committed to Semantic Store: {item.strip()[:50]}...")
+
+            if records:
+                # 4. Final Batch Commitment to the Engine
+                await memory_coordinator.memory.remember_many(records)
+                logger.info(f"✅ Consolidated {len(records)} memories (batch: {source_id}) using {model_inst}")
+
+            return # Success!
+
+        except Exception as e:
+            last_error = e
+            logger.warning(f"⚠️ Consolidation failover: {model_inst} failed: {e}. Trying next...")
+            continue
+
+    logger.error(f"❌ Background memory consolidation failed after all attempts: {last_error}")
 
 
 def run_consolidation(messages: list[dict[str, Any]]) -> None:
     """
-    Public entry point for consolidation. Ensures the process runs 
-    asynchronously without halting the main interaction loop.
+        Public entry point for consolidation. Ensures the process runs 
+        asynchronously without halting the main interaction loop.
     """
     try:
         loop = asyncio.get_running_loop()

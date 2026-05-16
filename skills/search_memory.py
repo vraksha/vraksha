@@ -4,7 +4,7 @@ import json
 
 from skills.base import Skill
 from src.memory.coordinator import memory_coordinator
-from tools.resolve.resolve_result import ResolveResult
+from resolve.resolve_result import ResolveResult
 
 
 class SearchMemorySkill(Skill):

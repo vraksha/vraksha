@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 from pathlib import Path
 
 from tools.base import Tool
-from tools.resolve.resolve_result import ResolveResult
+from resolve.resolve_result import ResolveResult
 
 # Directories we never descend into: noisy and rarely useful to the agent.
 _PRUNE = {

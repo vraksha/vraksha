@@ -20,7 +20,6 @@ import logging
 import os
 import re
 import sqlite3
-import tempfile
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -33,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 MEMORY_ROOT = root.project / "memory"
 INDEX_DB = MEMORY_ROOT / "index" / "memory.sqlite3"
-MAX_FILE_BYTES = 64 * 1024
+MAX_FILE_BYTES = 64 * 1024 # 64 KB  
 MAX_CHUNK_CHARS = 1800
 CHUNK_OVERLAP = 180
 MAX_ESSENTIAL_CHARS = 18_000
@@ -60,22 +59,35 @@ def atomic_append(path: Path, text: str) -> None:
 
 
 class AsyncJournalWriter:
-    """
-    Prevents blocking the main execution loop by offloading journal appends
-    to a background worker. This ensures that even slow disk I/O doesn't 
-    impact the agent's responsiveness.
+    """Non-blocking journal writer to offload disk I/O from the agent's thought loop.
+    
+    Disk I/O is a synchronous, blocking operation that can stall the Python event 
+    loop for several milliseconds — or even seconds if the host system is under 
+    heavy I/O wait. In an agentic system, 'thought' latency is the most critical 
+    metric. If the agent has to wait for a physical write to complete before 
+    moving to its next cognitive step, the perceived responsiveness collapses.
+    
+    This class uses an internal :class:`asyncio.Queue` to decouple the *intent* 
+    to log from the physical write. Callers use :meth:`append` to fire-and-forget 
+    their logs. A background worker task consumes the queue and performs the 
+    actual :func:`atomic_append` in a separate thread pool via :func:`asyncio.to_thread`.
     """
     def __init__(self):
         self._queue: asyncio.Queue[tuple[Path, str]] = asyncio.Queue()
         self._worker_task: asyncio.Task | None = None
 
     def start(self):
-        """Initializes the background worker task if not already running."""
+        """Lazy-initialization ensures we don't spin up a background worker 
+        until it's actually needed, saving resources on startup.
+        """
         if not self._worker_task:
             self._worker_task = asyncio.create_task(self._worker())
 
     async def _worker(self):
-        """Continuous loop processing pending disk writes."""
+        """We use :func:`asyncio.to_thread` here because file writes are 
+        blocking C-level calls that don't yield to the event loop. This 
+        keeps the main loop free for agent logic.
+        """
         while True:
             try:
                 path, text = await self._queue.get()
@@ -88,7 +100,22 @@ class AsyncJournalWriter:
                 logger.error(f"Memory journal write failure: {e}", exc_info=True)
 
     def append(self, path: Path, text: str):
-        """Queues a new line for the journal. Non-blocking."""
+        """High-performance entry point that avoids any await keywords, 
+        allowing it to be called from synchronous contexts without friction.
+        
+        It handles the lazy-start of the worker thread and pushes the new 
+        log entry into the background queue.
+        """
+        try:
+            # Try to start if not already running
+            if not self._worker_task:
+                self.start()
+
+        except RuntimeError:
+            # If no loop is running yet, it's okay, we'll start on the next call 
+            # or the loop will be available later.
+            pass
+
         self._queue.put_nowait((path, text))
 
 
@@ -97,6 +124,17 @@ _journal_writer = AsyncJournalWriter()
 
 
 def bounded_read_text(path: Path, max_bytes: int = MAX_FILE_BYTES) -> str:
+    """Read a text file with a hard cap to protect the LLM context window.
+    
+    Modern LLMs have expansive windows, but their 'attention' density drops 
+    significantly as the prompt grows (the 'Lost in the Middle' problem). 
+    Feeding 1MB of raw logs into a prompt is often counter-productive. 
+    
+    This helper caps the read at 64KB (``MAX_FILE_BYTES``). This ensures that 
+    the agent remains focused on the task while having enough recent context 
+    to be effective. For deeper history, the agent should rely on the 
+    indexed search via :meth:`LocalFirstMemory.search`.
+    """
     raw = path.read_bytes()[:max_bytes]
     text = raw.decode("utf-8", errors="replace")
 
@@ -107,7 +145,18 @@ def bounded_read_text(path: Path, max_bytes: int = MAX_FILE_BYTES) -> str:
 
 
 def chunk_text_stream(path: Path, size: int = MAX_CHUNK_CHARS, overlap: int = CHUNK_OVERLAP) -> Iterable[tuple[int, str]]:
-    """Generative chunking to handle multi-GB files without memory spikes."""
+    """Stream-chunk a file from disk to avoid memory spikes and context loss.
+    
+    Loading a multi-GB repository file into a single string to chunk it in memory 
+    is a common cause of OOM (Out of Memory) crashes. This generator streams 
+    the file in small increments and breaks it into overlapping chunks.
+    
+    The generator scans for 'semantic break points' (double-newlines or sentence 
+    ends) to keep related logic together. Crucially, it maintains a 180-character 
+    overlap between chunks. This overlap ensures that if a critical fact (like 
+    a function signature) is split at the chunk boundary, both chunks retain 
+    enough surrounding text for the LLM to reconstruct the full meaning.
+    """
     idx = 0
     buffer = ""
 
@@ -121,6 +170,8 @@ def chunk_text_stream(path: Path, size: int = MAX_CHUNK_CHARS, overlap: int = CH
             buffer += chunk
 
             while len(buffer) > size:
+                # We prioritize double-newlines and sentence ends to keep 
+                # related thoughts together within a single chunk.
                 boundary = max(buffer.rfind("\n\n", 0, size), buffer.rfind(". ", 0, size))
                 end = boundary + 1 if boundary > size // 2 else size
                 
@@ -134,21 +185,42 @@ def chunk_text_stream(path: Path, size: int = MAX_CHUNK_CHARS, overlap: int = CH
 
 @dataclass(slots=True)
 class MemoryRecord:
+    """A unified data structure for facts, rules, and events across all stores.
+    
+    Vraksha uses a Tri-Store approach (Wiki, Semantic, SQLite), but the 
+    retrieval engine expects a single, predictable contract. This record 
+    normalizes external Markdown files and internal SQLite rows. 
+    
+    The use of ``slots=True`` is a deliberate optimization to reduce the memory 
+    footprint of the 'Hot Cache' when thousands of records are held in RAM.
+    """
     source_id: str
-    kind: str
+    kind: str           # e.g., 'fact', 'rule', 'preference', 'episode'
     title: str
     content: str
-    trust: float = 0.55
-    pinned: bool = False
-    valid_until: str | None = None
+    trust: float = 0.55 # 0.0 to 1.0; used for retrieval gating
+    pinned: bool = False # If true, ignores trust and always stays in context
+    valid_until: str | None = None # ISO timestamp for ephemeral facts
     metadata: dict[str, Any] | None = None
 
 
 class LocalFirstMemory:
-    """Local filesystem + SQLite FTS5 memory layer.
-
-    Raw durable files stay under memory/. Retrieval uses a local SQLite FTS5
-    index with trust/validity gates so prompt context is bounded and curated.
+    """The core indexing and search engine for Vraksha's long-term memory.
+    
+    We rely on :mod:`sqlite3`'s FTS5 (Full Text Search) module with BM25 
+    ranking for two primary reasons:
+    
+    1. **Technical Precision**: In software engineering, 'Keyword' matching 
+       is often superior to 'Semantic' vector search. If you search for 
+       ``MemoryCoordinator``, a vector DB might return ``SemanticLayer`` 
+       because they sound conceptually similar, whereas FTS5 will find the 
+       actual class definition with 100% precision.
+    2. **Zero-Latency Privacy**: Local search is sub-millisecond and 
+       requires no external API calls, ensuring your codebase never leaks 
+       to third-party vector providers for 'indexing'.
+       
+    The class implements a 'Hot Cache' for the current session and a 
+    persistent SQLite index for multi-session recall.
     """
 
     def __init__(self, db_path: Path = INDEX_DB, memory_root: Path = MEMORY_ROOT) -> None:
@@ -156,26 +228,46 @@ class LocalFirstMemory:
         self.memory_root = Path(memory_root)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.memory_root.mkdir(parents=True, exist_ok=True)
+        # RLock allows the same thread to acquire the lock multiple times, 
+        # which is necessary for complex recursive indexing tasks.
         self._lock = threading.RLock()
-        self._hot_cache: list[MemoryRecord] = []
+        self._hot_cache: list[MemoryRecord] = [] # Temporary RAM storage for current session
+        
+        # check_same_thread=False is required for sharing a connection 
+        # between the main loop and background asyncio.to_thread workers.
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._configure()
         self._ensure_schema()
 
     def _configure(self) -> None:
+        """Apply performance and concurrency tunings to the SQLite connection.
+        
+        We use ``journal_mode=WAL`` (Write-Ahead Logging) to ensure that the 
+        background consolidation agent can commit new memories without 
+        blocking search queries from the main agent loop.
+        
+        The ``mmap_size`` is set to 256MB to tell the kernel to map the index 
+        file directly into address space, effectively turning disk searches 
+        into memory-speed lookups.
+        """
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.execute("PRAGMA temp_store=MEMORY")
         self._conn.execute("PRAGMA mmap_size=268435456") # 256MB mmap for high-speed indexing
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.execute("PRAGMA foreign_keys=ON")
-        _journal_writer.start()
 
     def _ensure_schema(self) -> None:
+        """Bootstrap the relational tables and FTS5 virtual index.
+        
+        FTS5 implements an inverted index using BM25 scoring—the same tech 
+        behind high-end search engines, but in a local file.
+        """
         with self._lock:
             self._conn.executescript(
                 """
+                -- Primary document storage
                 CREATE TABLE IF NOT EXISTS documents (
                   id INTEGER PRIMARY KEY,
                   doc_key TEXT NOT NULL UNIQUE,
@@ -195,12 +287,16 @@ class LocalFirstMemory:
                   updated_at TEXT NOT NULL
                 );
 
+                -- Virtual table for lightning-fast keyword search (BM25 ranking)
                 CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
                   title, content, kind, source_id,
                   content='documents', content_rowid='id',
                   tokenize='unicode61 remove_diacritics 2'
                 );
 
+                -- Triggers automate the mirroring of data into the virtual 
+                -- FTS table, keeping the index 100% in sync without extra 
+                -- code logic in the Python layer.
                 CREATE TRIGGER IF NOT EXISTS documents_ai AFTER INSERT ON documents BEGIN
                   INSERT INTO documents_fts(rowid, title, content, kind, source_id)
                   VALUES (new.id, new.title, new.content, new.kind, new.source_id);
@@ -231,30 +327,36 @@ class LocalFirstMemory:
             self._conn.commit()
 
     def core_files(self) -> list[tuple[Path, str, float, bool]]:
+        """Defines the 'Ground Truth' files that must always be indexed."""
         return [
             (self.memory_root / "soul.md", "core", 0.99, True),
             (self.memory_root / "rules.md", "core", 0.99, True),
-            (self.memory_root / "agent" / "memory.yaml", "summary", 0.75, False),
-            (self.memory_root / "agent" / "projects.yaml", "project", 0.80, False),
-            (self.memory_root / "agent" / "journal.md", "episode", 0.45, False),
+            (self.memory_root / "wiki" / "rules.md", "wiki", 0.90, True),
             (self.memory_root / "agent" / "journal.jsonl", "episode", 0.45, False),
-            (self.memory_root / "wiki" / "WIKI.md", "wiki", 0.70, False),
         ]
 
     async def bootstrap(self) -> None:
+        """Initializes the memory layer by re-indexing core files."""
         for path, kind, trust, pinned in self.core_files():
             if path.exists():
                 await self.index_file(path, kind=kind, trust=trust, pinned=pinned)
 
     def bootstrap_sync(self) -> None:
+        """Synchronous version of bootstrap."""
         for path, kind, trust, pinned in self.core_files():
             if path.exists():
                 self._index_file_sync(path, kind, trust, pinned)
 
     async def index_file(self, path: Path, *, kind: str, trust: float, pinned: bool = False) -> None:
+        """Asynchronously indexes a file on disk."""
         await asyncio.to_thread(self._index_file_sync, Path(path), kind, trust, pinned)
 
     def _index_file_sync(self, path: Path, kind: str, trust: float, pinned: bool) -> None:
+        """Checks mtime/size to see if the file has changed.
+        
+        If it has, it deletes old chunks and streams new ones into SQLite. We 
+        track mtime and size as a 'fingerprint' to save CPU cycles and I/O.
+        """
         stat = path.stat()
         with self._lock:
             state = self._conn.execute(
@@ -267,16 +369,10 @@ class LocalFirstMemory:
         now = utc_now()
         rel = path.as_posix()
 
-        try:
-            rel = path.relative_to(self.memory_root.parent).as_posix()
-        except ValueError:
-            pass
-
         with self._lock:
-            self._conn.execute("BEGIN") # Non-immediate to allow concurrent reads during indexing
+            self._conn.execute("BEGIN")
             try:
                 self._conn.execute("DELETE FROM documents WHERE source_path = ?", (path.as_posix(),))
-                # Stream chunks instead of reading full text
                 for idx, chunk in chunk_text_stream(path):
                     self._insert_record(
                         doc_key=f"file:{path.as_posix()}:{idx}",
@@ -288,24 +384,34 @@ class LocalFirstMemory:
                         content=chunk,
                         trust=trust,
                         pinned=pinned,
-                        valid_until=None,
-                        metadata={"bytes": stat.st_size},
                         now=now,
+                        metadata={"bytes": stat.st_size}
                     )
                 self._conn.execute(
                     "INSERT OR REPLACE INTO source_state(source_path, mtime_ns, size_bytes, indexed_at) VALUES (?, ?, ?, ?)",
                     (path.as_posix(), stat.st_mtime_ns, stat.st_size, now),
                 )
                 self._conn.commit()
-
             except Exception:
                 self._conn.rollback()
                 raise
 
     async def remember_many(self, records: list[MemoryRecord]) -> None:
+        """Asynchronously persists multiple memory records."""
         await asyncio.to_thread(self.remember_many_sync, records)
 
     def remember_many_sync(self, records: list[MemoryRecord]) -> None:
+        """Commit a batch of memories to all three storage paths.
+        
+        Every 'memory' event follows three paths for maximum resilience:
+        1. **Hot Cache**: Immediate RAM storage for zero-latency context.
+        2. **SQLite**: Indexed search storage for multi-session recall.
+        3. **Journal**: Durable JSONL append for 'black box' logging.
+        
+        This multi-path commitment ensures that the agent always has access 
+        to the most recent facts while maintaining a durable archive that 
+        can be re-indexed if the database is ever lost.
+        """
         now = utc_now()
 
         with self._lock:
@@ -347,6 +453,7 @@ class LocalFirstMemory:
                     }, ensure_ascii=False) + "\n")
                 
                 self._conn.commit()
+                # We cap the hot cache here to prevent memory leak in long sessions.
                 del self._hot_cache[:-MAX_HOT_CACHE]
 
             except Exception:
@@ -378,9 +485,9 @@ class LocalFirstMemory:
               updated_at=excluded.updated_at
             """,
             (
-                kw["doc_key"], kw["source_id"], kw["source_path"], kw["kind"], kw["title"],
+                kw["doc_key"], kw["source_id"], kw.get("source_path"), kw["kind"], kw["title"],
                 kw["chunk_index"], kw["content"], sha256_text(kw["content"]), float(kw["trust"]),
-                int(bool(kw["pinned"])), kw["valid_until"], json.dumps(kw["metadata"], ensure_ascii=False),
+                int(bool(kw["pinned"])), kw.get("valid_until"), json.dumps(kw["metadata"], ensure_ascii=False),
                 kw["now"], kw["now"],
             ),
         )
@@ -389,16 +496,17 @@ class LocalFirstMemory:
         return await asyncio.to_thread(self.search_sync, query, limit=limit, min_trust=min_trust, kinds=kinds)
 
     def search_sync(self, query: str, *, limit: int = MAX_RESULTS, min_trust: float = 0.35, kinds: Sequence[str] | None = None) -> list[dict[str, Any]]:
+        """Perform a keyword search using BM25 ranking and result diversification.
+        
+        Unlike standard SQL 'LIKE' matches, BM25 ranks results by word 
+        uniqueness and frequency. This ensures that technical terms in 
+        the query yield the most relevant results first.
+        """
         self.bootstrap_sync()
-        return self._search_sync(query, limit, min_trust, tuple(kinds or ()))
-
-    def _search_sync(self, query: str, limit: int, min_trust: float, kinds: tuple[str, ...]) -> list[dict[str, Any]]:
-        # Sanitize query: extract alphanumeric tokens and prevent FTS syntax injection
         tokens = TOKEN_RE.findall(query.lower())[:10]
         if not tokens:
             return []
             
-        # Build FTS5 query using OR for maximum recall; BM25 will handle the ranking
         fts_query = " OR ".join(f'"{t}"' for t in tokens)
         
         params: list[Any] = [fts_query, min_trust, utc_now()]
@@ -407,7 +515,6 @@ class LocalFirstMemory:
             kind_clause = " AND d.kind IN (" + ",".join("?" for _ in kinds) + ")"
             params.extend(kinds)
         
-        # We fetch more than requested to allow for diversification/deduplication
         params.append(max(limit * 4, 32))
 
         with self._lock:
@@ -423,7 +530,7 @@ class LocalFirstMemory:
                       AND (d.pinned = 1 OR d.trust >= ?)
                       AND (d.valid_until IS NULL OR d.valid_until > ?)
                       {kind_clause}
-                    ORDER BY d.pinned DESC, d.trust DESC, rank ASC, d.updated_at DESC
+                    ORDER BY d.pinned DESC, d.trust DESC, rank ASC
                     LIMIT ?
                     """,
                     params,
@@ -431,7 +538,6 @@ class LocalFirstMemory:
 
                 selected = self._diversify(rows, limit)
                 if selected:
-                    # Update access statistics for future prioritization/caching logic
                     self._conn.executemany(
                         "UPDATE documents SET access_count = access_count + 1 WHERE id = ?", 
                         [(r["id"],) for r in selected]
@@ -442,8 +548,14 @@ class LocalFirstMemory:
                 logger.error(f"Search failed: {e}")
                 return []
 
-    @staticmethod
-    def _diversify(rows: Sequence[sqlite3.Row], limit: int) -> list[sqlite3.Row]:
+    def _diversify(self, rows: Sequence[sqlite3.Row], limit: int) -> list[sqlite3.Row]:
+        """Ensure the search results spread across multiple distinct sources.
+        
+        In RAG (Retrieval-Augmented Generation), prompt space is expensive. 
+        If we fill 8 results from one file, we lose context from others. 
+        This logic ensures a 'spread' across multiple sources for a broader 
+        contextual view.
+        """
         out: list[sqlite3.Row] = []
         seen_hashes: set[str] = set()
         per_source: dict[str, int] = {}
@@ -468,43 +580,45 @@ class LocalFirstMemory:
 
         return out
 
-    @staticmethod
-    def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    def _row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
+        """Converts a database row into a clean dictionary for the agent."""
         return {
-            "doc_key": row["doc_key"],
             "source": row["source_id"],
             "kind": row["kind"],
             "title": row["title"],
             "content": row["content"],
             "trust": float(row["trust"]),
             "pinned": bool(row["pinned"]),
-            "valid_until": row["valid_until"],
             "metadata": json.loads(row["metadata_json"] or "{}"),
-            "updated_at": row["updated_at"],
-            "rank": float(row["rank"] or 0.0),
         }
 
     async def essential_context(self, user_query: str = "") -> str:
         return await asyncio.to_thread(self.essential_context_sync, user_query)
 
     def essential_context_sync(self, user_query: str = "") -> str:
+        """Assemble the foundational context required for every agent interaction.
+        
+        This method combines the 'Bedrock' identity (Soul, Rules), the 
+        recent 'Hot Cache' of the session, and the most relevant search hits 
+        into a single context block.
+        
+        It is designed to be the single source of truth for the agent's 
+        'working memory' before it processes the user's latest message.
+        """
         self.bootstrap_sync()
         core_parts = []
 
         for path in [self.memory_root / "soul.md", self.memory_root / "rules.md"]:
             if path.exists():
-                core_parts.append(f"From {path.name}:\n{bounded_read_text(path)}")
+                core_parts.append(f"### {path.name}\n{bounded_read_text(path)}")
 
         hot = [f"- {r.kind}: {r.content[:500]}" for r in self._hot_cache[-MAX_HOT_CACHE:]]
         hits = self.search_sync(user_query, limit=6) if user_query else []
-        retrieved = [f"- [{h['kind']} trust={h['trust']:.2f} source={h['source']}] {h['content']}" for h in hits]
-        text = "\n\n".join(core_parts) if core_parts else "No essential memory found."
-
-        if hot:
-            text += "\n\nSession hot-cache:\n" + "\n".join(hot)
-
-        if retrieved:
-            text += "\n\nRetrieved memory:\n" + "\n".join(retrieved)
+        retrieved = [f"- [{h['kind']}] {h['content']}" for h in hits]
+        
+        text = "\n\n".join(core_parts)
+        if hot: text += "\n\n## Recent Context:\n" + "\n".join(hot)
+        if retrieved: text += "\n\n## Relevant Memories:\n" + "\n".join(retrieved)
 
         return text[:MAX_ESSENTIAL_CHARS]
 

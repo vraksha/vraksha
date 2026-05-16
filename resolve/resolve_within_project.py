@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from tools.resolve.resolve_result import ResolveResult
+from resolve.resolve_result import ResolveResult
 from get_root import root
 
 PROJECT_ROOT = root.project.resolve()

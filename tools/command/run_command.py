@@ -7,7 +7,7 @@ import uuid
 import os
 import shutil
 
-from tools.resolve.resolve_result import ResolveResult
+from resolve.resolve_result import ResolveResult
 from tools.command.create_sandbox import IMAGE_NAME, build_sandbox_image
 from get_root import root
 

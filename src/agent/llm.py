@@ -1,3 +1,9 @@
+# ==============================================================================
+# DEPRECATED: Legacy Agent Orchestrator.
+# This manual tool-loop is being replaced by the PydanticAI CNS in engine.py.
+# Please do not add new logic here.
+# ==============================================================================
+
 import logging
 
 logger = logging.getLogger(__name__)

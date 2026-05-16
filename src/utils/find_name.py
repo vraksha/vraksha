@@ -1,3 +1,8 @@
+# ========================================================
+# Note: This file is redundant and kept just for testing,
+# Will replace it soon with a robust name finder/updater
+# ========================================================
+
 import re
 from pathlib import Path
 
