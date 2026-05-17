@@ -58,11 +58,25 @@ def _message_text(message: dict[str, Any]) -> str:
 
     return str(content)
 
+"""
+    A bare asterisk * (without a variable name) acts as a separator in a function's signature.
+    It indicates that all parameters following it must be passed as keyword arguments only.
+
+    Example:
+    def update_record(id, *, status, notify=False):
+        pass
+
+    # Correct:
+        update_record(101, status="active", notify=True)
+
+    # Error:
+        update_record(101, "active", True)  # TypeError: takes 1 positional argument but 3 were given
+"""
 def build_transcript(messages: list[dict[str, Any]], *, max_messages: int = 30, max_chars: int = 15_000) -> str:
     """
         Constructs a clean, timestamped transcript for consolidation analysis.
     """
-    lines = [f"{str(m.get('role', 'unknown')).upper()}: {_message_text(m)}" for m in messages[-max_messages:]]
+    lines = [f"{str(m.get('role', 'unknown')).upper()}: {_message_text(m)}" for m in messages[-max_messages:]] # Takes and loops over last N messages
     return "\n".join(lines)[-max_chars:]
 
 async def consolidate_session(messages: list[dict[str, Any]]) -> None:
