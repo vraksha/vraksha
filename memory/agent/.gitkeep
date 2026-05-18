@@ -1,6 +1,0 @@
-## This folder contains 2 files:
-
-1. memory.yaml (works as a persistent memory for your agent(s)):
-    - important content from the conversation you have with the agent
-2. projects.yaml:
-    - information of your recent projects

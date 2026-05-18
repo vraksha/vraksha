@@ -1,5 +1,0 @@
-# This memory layer has folders:
-    agent/, index/, kuzu/, qdrant/, skills/ (tho it would be removed at some point).
-    that would either be there from start or would be built the first time you run the agent.
-
-Other specifications would be given later when everything is actually built :)
