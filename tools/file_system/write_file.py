@@ -98,7 +98,7 @@ class WriteFile():
             output=f"OK: {action} {len(content)} chars to {path_str}"
             return {
                 "success":True,
-                "error":{
+                "data":{
                     "path": path_str,
                     "content": output
                 }

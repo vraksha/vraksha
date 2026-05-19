@@ -88,7 +88,7 @@ class RemoveFile():
             output=f"OK: removed {path_str}"
             return {
                 "success":True,
-                "error":{
+                "data":{
                     "path": path_str,
                     "content": output
                 }

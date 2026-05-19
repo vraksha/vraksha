@@ -88,7 +88,7 @@ class GetTree():
             result=root_path.name
             return {
                 "success":True,
-                "error":{
+                "data":{
                     "path": root_path,
                     "content": result
                 }
@@ -100,7 +100,7 @@ class GetTree():
         result="\n".join(lines)
         return {
                 "success":True,
-                "error":{
+                "data":{
                     "path": root_path,
                     "content": result
                 }

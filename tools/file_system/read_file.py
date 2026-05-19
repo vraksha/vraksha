@@ -80,7 +80,7 @@ class ReadFile():
                 output=f"DIRECTORY: {path_str}\n{tree}"
                 return {
                 "success":True,
-                "error":{
+                "data":{
                     "path": path_str,
                     "content": output
                 }
@@ -103,7 +103,7 @@ class ReadFile():
             output=f"FILE: {path_str}\n{content}"
             return {
                 "success":True,
-                "error":{
+                "data":{
                     "path": path_str,
                     "content": content
                 }
