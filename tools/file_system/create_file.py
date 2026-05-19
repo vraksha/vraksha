@@ -1,12 +1,16 @@
 import logging
 
 logger = logging.getLogger(__name__)
-
-from tools.base import Tool
+from tools.schemas.output import STANDARD_OUTPUT_SCHEMA
 from resolve.resolve_within_project import resolve_path
-from resolve.resolve_result import ResolveResult
 
-class CreateFile(Tool):
+from registry.register import tool
+
+@tool(
+    domain="filesystem",
+    tags=["create"]
+)
+class CreateFileTool:
     name = "create_file"
     description = (
                 "Create a NEW file with `content`. Fails if the file already exists. "
@@ -28,6 +32,7 @@ class CreateFile(Tool):
                 },
                 "required": ["path", "content"],
             }
+    output_schema = STANDARD_OUTPUT_SCHEMA
 
     def call(self, tool_input: dict) -> str:
         path_str = tool_input.get("path", "")
@@ -36,20 +41,26 @@ class CreateFile(Tool):
         result = resolve_path(path_str)
         if not result.success:
             error=f"ERROR: {result.result}"
-            return ResolveResult(
-                success=False,
-                error=error
-            )
+            return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": error
+                }
+            }
             logger.error(error)
 
         target = result.path
 
         if target.exists():
             error=f"ERROR: file '{path_str}' already exists. Use 'write_file' to modify it."
-            return ResolveResult(
-                success=False,
-                error=error
-            )
+            return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": error
+                }
+            }
             logger.error(error)
 
         try:
@@ -58,20 +69,23 @@ class CreateFile(Tool):
 
             output=f"OK: created file {path_str} ({len(content)} chars)"
 
-            return ResolveResult(
-                success=True,
-                result=output
-            )
+            return {
+                "success":True,
+                "data":{
+                    "path": path_str,
+                    "content": output
+                }
+            }
             logger.info(output)
             
         except Exception as e:
             error=f"ERROR: failed to create '{path_str}': {e}"
-            return ResolveResult(
-                success=False,
-                error=error
-            )
+            return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": e
+                }
+            }
             logger.error(error)
 
-
-def get_tool() -> Tool:
-    return CreateFile()

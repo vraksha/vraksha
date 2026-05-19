@@ -4,8 +4,9 @@ logger = logging.getLogger(__name__)
 
 from pathlib import Path
 
-from tools.base import Tool
-from resolve.resolve_result import ResolveResult
+from tools.schemas.output import STANDARD_OUTPUT_SCHEMA
+
+from registry.register import tool
 
 # Directories we never descend into: noisy and rarely useful to the agent.
 _PRUNE = {
@@ -13,7 +14,8 @@ _PRUNE = {
     ".pytest_cache", ".mypy_cache", "dist", "build", ".next",
 }
 
-class GetTree(Tool):
+@tool(domain="filesystem", tags=["tree", "inspect"])
+class GetTree():
     name="get_tree_structure"
     description=(
         "Return a textual tree of `root_path` up to `max_depth` levels deep."
@@ -54,9 +56,9 @@ class GetTree(Tool):
             "required": ["path"],
         }
 
+    output_schema = STANDARD_OUTPUT_SCHEMA
 
 
-    # def call(self, root_path: Path | str, max_depth: int = 3) -> str:
     def call(self, tool_input) -> str:
         """Return a textual tree of `root_path` up to `max_depth` levels deep.
 
@@ -73,27 +75,36 @@ class GetTree(Tool):
 
         if not root_path.exists():
             error=f"(path not found: {root_path})"
-            return ResolveResult(
-                success=False,
-                error=error
-            )
+            return {
+                "success":False,
+                "error":{
+                    "path": root_path,
+                    "content": error
+                }
+            }
             logger.error(error)
 
         if root_path.is_file():
             result=root_path.name
-            return ResolveResult(
-                success=True,
-                result=root_path.name
-            )
+            return {
+                "success":True,
+                "error":{
+                    "path": root_path,
+                    "content": result
+                }
+            }
             logger.info(f"File detected - returned '{result}'")
 
         lines = [f"{root_path.name}/"]
         self._walk(root_path, "", lines, tool_input.get("max_depth", 3), depth=0)
         result="\n".join(lines)
-        return ResolveResult(
-            success=True,
-            result=result
-        )
+        return {
+                "success":True,
+                "error":{
+                    "path": root_path,
+                    "content": result
+                }
+            }
         logger.info(f"Directory detected - returned '{result}'")
 
 
@@ -124,5 +135,3 @@ class GetTree(Tool):
                 extension = "    " if last else "│   "
                 self._walk(entry, prefix + extension, out, max_depth, depth + 1)
 
-def get_tool() -> Tool:
-    return GetTree()

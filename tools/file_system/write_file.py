@@ -2,12 +2,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from tools.base import Tool
 from resolve.resolve_within_project import resolve_path
-from resolve.resolve_result import ResolveResult
+from tools.schemas.output import STANDARD_OUTPUT_SCHEMA
 from src.utils.immutables import is_immutable
 
-class WriteFile(Tool):
+from registry.register import tool
+
+@tool(domain="system", tags=["write"])
+class WriteFile():
     name = "write_file"
     description = (
                 "Write `content` to a file inside the project. Supports 'overwrite' "
@@ -39,6 +41,8 @@ class WriteFile(Tool):
                 "required": ["path", "content"],
             }
 
+    output_schema = STANDARD_OUTPUT_SCHEMA
+
     def call(self, tool_input: dict) -> str:
         path_str = tool_input.get("path", "")
         content = tool_input.get("content", "")
@@ -47,29 +51,38 @@ class WriteFile(Tool):
         result = resolve_path(path_str)
         if not result.success:
             error=f"ERROR: {result.error}"
-            return ResolveResult(
-                success=False,
-                error=error
-            )
+            return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": error
+                }
+            }
             logger.error(error)
 
         target = result.path
 
         if is_immutable(target):
             error=f"BLOCKED: '{path_str}' is immutable."
-            return ResolveResult(
-                success=False,
-                error=error
-            )
+            return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": error
+                }
+            }
             logger.error(error)
             
 
         if target.exists() and target.is_dir():
             error=f"ERROR: '{path_str}' is a directory, not a file."
-            return ResolveResult(
-                success=False,
-                error=error
-            )
+            return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": error
+                }
+            }
             logger.error(error)
 
         try:
@@ -83,20 +96,23 @@ class WriteFile(Tool):
             action = "overwrote" if mode == "overwrite" else "appended to"
             
             output=f"OK: {action} {len(content)} chars to {path_str}"
-            return ResolveResult(
-                success=True,
-                result=output
-            )
+            return {
+                "success":True,
+                "error":{
+                    "path": path_str,
+                    "content": output
+                }
+            }
             logger.info(output)
 
         except Exception as e:
             error=f"ERROR: failed to write to '{path_str}': {e}"
-            return ResolveResult(
-                success=False,
-                error=error
-            )
+            return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": error
+                }
+            }
             logger.error(error)
 
-
-def get_tool() -> Tool:
-    return WriteFile()

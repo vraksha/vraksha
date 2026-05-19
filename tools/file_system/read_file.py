@@ -2,12 +2,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from tools.base import Tool
 from resolve.resolve_within_project import resolve_path
-from resolve.resolve_result import ResolveResult
+from tools.schemas.output import STANDARD_OUTPUT_SCHEMA
 from src.utils.get_tree import get_tree
 
-class ReadFile(Tool):
+from registry.register import tool
+
+@tool(domain="filesystem", tags=["read"])
+class ReadFile():
     name = "read_file"
     description = (
             "Read a file or list a directory inside the project. "
@@ -40,6 +42,8 @@ class ReadFile(Tool):
             "required": ["path"],
         }
 
+    output_schema = STANDARD_OUTPUT_SCHEMA
+
 
     def call(self, tool_input: dict) -> str:
         path_str = tool_input.get("path", "")
@@ -48,64 +52,81 @@ class ReadFile(Tool):
         res = resolve_path(path_str)
         if not res.success:
             error=f"ERROR: {res.error}"
-            return ResolveResult(
-                success=False,
-                error=error
-            )
+            return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": error
+                }
+            }
             logger.error(error)
 
         target = res.result
 
         if not target.exists():
             error=f"ERROR: Path '{path_str}' does not exist."
-            return ResolveResult(
-                success=False,
-                error=error
-            )
+            return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": error
+                }
+            }
             logger.error(error)
 
         if target.is_dir():
             try:
                 tree = get_tree(target, max_depth)
                 output=f"DIRECTORY: {path_str}\n{tree}"
-                return ResolveResult(
-                    success=True,
-                    result=output
-                )
+                return {
+                "success":True,
+                "error":{
+                    "path": path_str,
+                    "content": output
+                }
+            }
                 logger.info(output)
 
             except Exception as e:
                 error=f"ERROR: Could not list directory: {e}"
-                return ResolveResult(
-                    success=False,
-                    error=error
-                )
+                return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": error
+                }
+            }
                 logger.error(error)
 
         try:
             content = target.read_text(encoding="utf-8")
             output=f"FILE: {path_str}\n{content}"
-            return ResolveResult(
-                success=True,
-                result=output
-            )
+            return {
+                "success":True,
+                "error":{
+                    "path": path_str,
+                    "content": content
+                }
+            }
             logger.info(output)
 
         except UnicodeDecodeError:
             error=f"ERROR: '{path_str}' is a binary file (non-UTF-8)."
-            return ResolveResult(
-                success=False,
-                error=error
-            )
+            return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": error
+                }
+            }
             logger.error(error)
             
         except Exception as e:
             error=f"ERROR: Failed to read file: {e}"
-            return ResolveResult(
-                success=False,
-                error=error
-            )
-
-def get_tool() -> Tool:
-    return ReadFile()
-
+            return {
+                "success":False,
+                "error":{
+                    "path": path_str,
+                    "content": error
+                }
+            }
