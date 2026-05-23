@@ -68,11 +68,14 @@ curl -fsSL https://raw.githubusercontent.com/vraksha/vraksha/main/install.sh | b
 > After that, just run `vraksha` to start your first session.
 
 ### 2. Set up your keys
-Put your API keys in `.env.local`. Vraksha is optimized for **Claude (Anthropic)** but works with OpenAI too.
+Put your API keys in `.env.local`. Vraksha supports all 12 of your favourite providers, including local models.
 
 ```bash
 ANTHROPIC_API_KEY=your_key_here
 OPENAI_API_KEY=your_key_here
+.
+.
+.
 GITHUB_TOKEN=your_token_here # Optional: Needed for the Slop Detector
 ```
 
