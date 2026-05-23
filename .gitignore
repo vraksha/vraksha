@@ -12,11 +12,13 @@ venv/
 vraksha.log
 
 # Memory (Ignore subfolder contents, track specific root files and .gitkeep)
-memory/**/*
-!memory/**/.gitkeep
-!memory/rules.md
-!memory/soul.md
-!memory/IMMUTABLE.yaml
+# memory/**/*
+# !memory/**/.gitkeep
+# memory/rules.md
+# memory/soul.md
+# !memory/IMMUTABLE.yaml
+
+memory/
 
 # Exclude SQLite and Temp Files
 *.sqlite3

@@ -100,11 +100,11 @@ DEFAULT_MODELS = {
 }
 
 PROVIDERS_PRIORITY_ORDER = {
+    "google": GoogleModel,
     "openrouter": OpenRouterModel,
     "ollama": OllamaModel,
     "anthropic": AnthropicModel,
     "openai": OpenAIChatModel,
-    "google": GoogleModel,
     "xai": XaiModel,
     "mistral": MistralModel,
     "cohere": CohereModel,
@@ -140,7 +140,8 @@ def _normalize_provider(provider_name: str) -> str:
         "twitter": "xai"
     }
     return aliases.get(name, name)
-
+    
+    
 def get_model_instance(provider_name: str, model_name: str):
     """Creates an initialized PydanticAI model instance synced with ApiKeyStore."""
     provider_name = _normalize_provider(provider_name)

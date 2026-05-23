@@ -1,5 +1,9 @@
 def extract_error_info(err, model_inst):
     import re
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.error("Caught exception during model execution", exc_info=err)
 
     status_code = getattr(err, "status_code", "unknown")
 
@@ -30,8 +34,10 @@ def extract_error_info(err, model_inst):
         # Flat error format (OpenAI)
         elif "message" in body:
             message = body.get("message", message)
+    else:
+        message = str(body)
 
-        message = message.split("\n")[0]
+    message = message.split("\n")[0]
 
     urls = re.findall(r"https?://[^\s,]+", str(body))
     help_url = urls[0] if urls else None
@@ -42,3 +48,5 @@ def extract_error_info(err, model_inst):
         "message": message,
         "help_url": help_url,
     }
+
+

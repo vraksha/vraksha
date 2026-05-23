@@ -1,3 +1,8 @@
+#======================================================
+# DEPRECATED: after introduction of output schema,
+# this became irrelevant
+#=======================================================
+
 from dataclasses import dataclass
 from typing import Any
 

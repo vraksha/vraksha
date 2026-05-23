@@ -5,7 +5,7 @@ from pydantic_ai.tools import RunContext
 # Vraksha Core Imports
 from src.agent.bootstrap import VrakshaDeps, bootstrap_vraksha
 from src.utils.get_tree import get_tree
-from tools.registry import tool_registry
+from registry.register import Registry
 from resolve.resolve_within_project import resolve_path
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ def register_legacy_tools():
         Dynamically wraps and registers all tools from the legacy registry.
         Ensures Vraksha doesn't lose any capabilities during the current transition to pydantic ai.
     """
-    for name, tool in tool_registry.tools.items():
+    for name, tool in Registry.tools():
         if name in ["search_memory", "read_file"]:
             continue # Already ported with native async logic
             
@@ -188,7 +188,7 @@ def agent_bridge(messages: list[dict]) -> str:
                 model=model_inst,
                 message_history=pydantic_history if pydantic_history else None
             )
-            return result.data
+            return result.output
 
         except Exception as e:
             from src.error_handlers.extract import extract_error_info
