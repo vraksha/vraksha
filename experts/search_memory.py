@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from sub_agents.base import Skill
+from experts.base import Skill
 from src.memory.coordinator import memory_coordinator
 from resolve.resolve_result import ResolveResult
 

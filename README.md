@@ -123,7 +123,7 @@ GITHUB_TOKEN=your_token_here # Optional: Needed for the Slop Detector
     </tr>
   </table>
   
-  <p><i>Vraksha v0.9.5-alpha: Previews</i></p>
+  <p><i>Vraksha v0.0.10: Previews</i></p>
   <br>
   <p><i>Note: The current version has the local-first memory and security foundations ready to go. We're rolling out the rest of the roadmap features one by one.</i></p>
 </div>
