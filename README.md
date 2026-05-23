@@ -72,11 +72,39 @@ Put your API keys in `.env.local`. Vraksha supports all 12 of your favourite pro
 
 ```bash
 ANTHROPIC_API_KEY=your_key_here
+
 OPENAI_API_KEY=your_key_here
-.
-.
-.
-GITHUB_TOKEN=your_token_here # Optional: Needed for the Slop Detector
+
+GOOGLE_API_KEY=your_key_here
+
+XAI_API_KEY=your_key_here
+
+OPENROUTER_API_KEY=your_key_here
+
+MISTRAL_API_KEY=your_key_here
+
+AWS_BEARER_TOKEN_BEDROCK='your-api-key'
+# or:
+AWS_ACCESS_KEY_ID='your-access-key'
+AWS_SECRET_ACCESS_KEY='your-secret-key'
+
+CEREBRAS_API_KEY='your-api-key'
+
+# Cohere
+CO_API_KEY='your-api-key'
+
+GROQ_API_KEY='your-api-key'
+
+OLLAMA_BASE_URL='http://localhost:11434/v1'
+OLLAMA_API_KEY='your-api-key'  # required for Ollama Cloud
+
+# To use hugging face models' api
+HF_TOKEN=your_hugging_face_key_here #Also for downloading a very small model for memory management (if not already in the repo)
+
+GITHUB_TOKEN=your_key_here #for slop detector expert/skill
+
+# add any other keys your app needs
+
 ```
 
 ---
