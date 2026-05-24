@@ -1,8 +1,16 @@
+###################################################################
+# DEPRECATED
+#
+# Kept just for backup
+###############################################################
+
+
+"""
 import abc
 import inspect
 import pathlib
-from typing import Type, Dict, Any, Callable, List
-from pydantic import BaseModel, Field
+from typing import Type, Callable
+from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 
 from sub_agents.base import BaseSubAgent
@@ -15,10 +23,10 @@ class SystemDeps(BaseModel):
 
 
 def register_agent(enabled: bool = True):
-    """
+    '''
     Class decorator to explicitly mount a sub-agent to the orchestrator.
     Allows easy toggling and prevents unintended registration during testing/drafting.
-    """
+    '''
     def decorator(cls: Type[BaseSubAgent]):
         if not enabled:
             return cls
@@ -69,4 +77,5 @@ def register_agent(enabled: bool = True):
 
 def agent_tool(func: Callable) -> Callable:
     func._is_agent_tool = True
-    return func
+    return 
+    """

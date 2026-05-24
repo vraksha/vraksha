@@ -47,6 +47,7 @@ class Registry:
     Users NEVER interact with Registry directly.
     """
 
+    # str: Our unique key (eg: tool.web.search)
     _registry: Dict[str, RegistryEntry] = {}
 
     

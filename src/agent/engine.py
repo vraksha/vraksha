@@ -4,9 +4,7 @@ from pydantic_ai.tools import RunContext
 
 # Vraksha Core Imports
 from src.agent.bootstrap import VrakshaDeps, bootstrap_vraksha
-from src.utils.get_tree import get_tree
-from registry.register import Registry
-from resolve.resolve_within_project import resolve_path
+from src.agent.initialize_tools.bootstrap_tools import attach_registry_tools
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +19,8 @@ vraksha_agent = Agent(
     TestModel(),
     deps_type=VrakshaDeps,
 )
+
+vraksha_agent = attach_registry_tools(vraksha_agent)
 
 @vraksha_agent.system_prompt
 async def apply_governance(context: RunContext[VrakshaDeps]) -> str:
@@ -47,21 +47,29 @@ async def apply_governance(context: RunContext[VrakshaDeps]) -> str:
 # Will replace soon
 # ==============================================================================
 
-# This function's logic might break, so it would be deprecated soon
+
+"""
+##############################################################
+# DEPRECATED
+# But still kept just in case
+##############################################################
+
 def register_legacy_tools():
-    """
+    '''
         Dynamically wraps and registers all tools from the legacy registry.
         Ensures Vraksha doesn't lose any capabilities during the current transition to pydantic ai.
-    """
-    for name, tool in Registry.tools():
+    '''
+    for name, tool in Registry.all():
         if name in ["search_memory", "read_file"]:
             continue # Already ported with native async logic
             
         def create_tool(t):
             @vraksha_agent.tool_plain(name=t.name)
-            def legacy_tool_wrapper(tool_input: dict) -> str:
+            def legacy_tool_wrapper(tool_input: dict):
                 # Preservation of Moat: Uses the original tool's logic and safety checks
                 res = t.call(tool_input)
+
+                # ResolveResult logic is kinda replaced now
 
                 # Handle ResolveResult objects if present
                 if hasattr(res, 'result'):
@@ -81,11 +89,15 @@ def register_legacy_tools():
 
 # Initialize the dynamic toolset
 register_legacy_tools()
+"""
+
+
 
 # ==============================================================================
 # NATIVE CORE TOOLS (Async Optimized)
+# Replaced with the dynamic registry, instead of this manual type
 # ==============================================================================
-
+'''
 @vraksha_agent.tool
 async def search_memory(
     context: RunContext[VrakshaDeps], 
@@ -103,16 +115,22 @@ async def search_memory(
         
     except Exception as e:
         return f"Error searching memory: {e}"
+'''
 
+"""
+##########################################################
+# DEPRECATED
+# There is already a read_file tool out there
+##########################################################
 @vraksha_agent.tool
 async def read_file(
     ctx: RunContext[VrakshaDeps], 
     path: str, 
     max_depth: int = 3
 ) -> str:
-    """
+    '''
         Read a file or list a directory inside the project.
-    """
+    '''
     res = resolve_path(path)
     if not res.success:
         return f"ERROR: {res.error}"
@@ -137,6 +155,7 @@ async def read_file(
 
     except Exception as e:
         return f"ERROR: Failed to read file: {e}"
+"""
 
 # ==============================================================================
 # LEGACY BRIDGE: Ensures 100% backward compatibility with the old loop.
@@ -145,7 +164,7 @@ async def read_file(
 from pydantic_ai.messages import ModelRequest, ModelResponse, UserPromptPart, TextPart
 from src.providers.client import get_model_priorities
 
-def agent_bridge(messages: list[dict]) -> str:
+def agent_bridge(messages: list[dict]) -> dict:
     """
     Synchronous bridge for the old base_loop.py.
     Now with Multi-Provider Fallback!
