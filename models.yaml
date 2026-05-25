@@ -42,10 +42,10 @@ openai:
 
 google:
   orchestrator:
-    model: gemini-2.5-flash
+    model: gemini-2.5-pro
     task: "Central brain, tool routing, memory decisions, multi-step planning"
   code:
-    model: gemini-2.5-flash
+    model: gemini-2.5-pro
     task: "Code generation, refactoring, debugging"
   slop_detector:
     model: gemini-2.5-flash
@@ -54,7 +54,7 @@ google:
     model: gemini-2.5-flash
     task: "Web research, summarization"
   planner:
-    model: gemini-2.5-flash
+    model: gemini-2.5-pro
     task: "Architecture decisions, roadmaps, long-form reasoning"
   memory:
     model: gemini-2.5-flash

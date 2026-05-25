@@ -3,6 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pathlib import Path
+from typing import Dict, Any
 
 from tools.schemas.output import STANDARD_OUTPUT_SCHEMA
 
@@ -59,7 +60,7 @@ class GetTree():
     output_schema = STANDARD_OUTPUT_SCHEMA
 
 
-    def call(self, tool_input) -> str:
+    def call(self, tool_input) -> Dict[str, Any]:
         """Return a textual tree of `root_path` up to `max_depth` levels deep.
 
         Output mirrors `tree(1)`:

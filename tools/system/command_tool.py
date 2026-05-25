@@ -11,7 +11,7 @@ from typing import Any, Dict
 
 from registry.register import tool
 from tools.system.sandbox.docker_sandbox import execute_in_sandbox
-from tools.system.schemas.output_schema import RICH_OUTPUT_SCHEMA
+from tools.schemas.output import RICH_OUTPUT_SCHEMA
 
 # =========================================================
 # Tool Definition

@@ -2,6 +2,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from typing import Dict, Any
+
 from resolve.resolve_within_project import resolve_path
 from tools.schemas.output import STANDARD_OUTPUT_SCHEMA
 from src.utils.immutables import is_immutable
@@ -33,7 +35,7 @@ class RemoveFile():
 
     output_schema = STANDARD_OUTPUT_SCHEMA
 
-    def call(self, tool_input: dict) -> str:
+    def call(self, tool_input: dict) -> Dict[str, Any]:
         path_str = tool_input.get("path", "")
         result = resolve_path(path_str)
 
@@ -48,7 +50,7 @@ class RemoveFile():
             }
             logger.error(error)
 
-        target = result.path 
+        target = result.result 
 
         if is_immutable(target):
             error=f"BLOCKED: '{path_str}' is protected and cannot be deleted."
