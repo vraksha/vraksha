@@ -1,6 +1,9 @@
 import logging
 
 logger = logging.getLogger(__name__)
+
+from typing import Dict, Any
+
 from tools.schemas.output import STANDARD_OUTPUT_SCHEMA
 from resolve.resolve_within_project import resolve_path
 
@@ -34,13 +37,13 @@ class CreateFileTool:
             }
     output_schema = STANDARD_OUTPUT_SCHEMA
 
-    def call(self, tool_input: dict) -> str:
+    def call(self, tool_input: dict) -> Dict[str, Any]:
         path_str = tool_input.get("path", "")
         content = tool_input.get("content", "")
 
         result = resolve_path(path_str)
         if not result.success:
-            error=f"ERROR: {result.result}"
+            error=f"ERROR: {result.error}"
             return {
                 "success":False,
                 "error":{
@@ -50,7 +53,7 @@ class CreateFileTool:
             }
             logger.error(error)
 
-        target = result.path
+        target = result.result
 
         if target.exists():
             error=f"ERROR: file '{path_str}' already exists. Use 'write_file' to modify it."

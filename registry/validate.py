@@ -75,18 +75,18 @@ class Validator:
         # Input schema
         # -------------------------------------------------
 
-        if not isinstance(cls.input_schema, Dict[str, Any]):
+        if not isinstance(cls.input_schema, dict):
             raise TypeError(
-                f"{cls.__name__}.input_schema must be Dict[str, Any]"
+                f"{cls.__name__}.input_schema must be a dict"
             )
 
         # -------------------------------------------------
         # Output schema
         # -------------------------------------------------
 
-        if not isinstance(cls.output_schema, Dict[str, Any]):
+        if not isinstance(cls.output_schema, dict):
             raise TypeError(
-                f"{cls.__name__}.output_schema must be Dict[str, Any]"
+                f"{cls.__name__}.output_schema must be a dict"
             )
 
         # -------------------------------------------------

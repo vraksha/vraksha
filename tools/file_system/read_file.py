@@ -2,6 +2,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from typing import Dict, Any
+
 from resolve.resolve_within_project import resolve_path
 from tools.schemas.output import STANDARD_OUTPUT_SCHEMA
 from src.utils.get_tree import get_tree
@@ -45,7 +47,7 @@ class ReadFile():
     output_schema = STANDARD_OUTPUT_SCHEMA
 
 
-    def call(self, tool_input: dict) -> str:
+    def call(self, tool_input: dict) -> Dict[str, Any]:
         path_str = tool_input.get("path", "")
         max_depth = tool_input.get("max_depth", 3)
         
