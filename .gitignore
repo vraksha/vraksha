@@ -30,6 +30,7 @@ FUTURE_SELF_REVIEW_PLAN.md
 .runtime_index.md
 
 # Architecture Backups & Legacy Residue
+.architecture/*
 .architecture/*_backups/
 .architecture/hermes/
 .architecture/vraksha/py_backups/
