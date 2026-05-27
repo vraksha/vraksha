@@ -5,6 +5,7 @@ from pydantic_ai.tools import RunContext
 # Vraksha Core Imports
 from src.agent.bootstrap import VrakshaDeps, bootstrap_vraksha
 from src.agent.initialize_tools.bootstrap_tools import attach_registry_tools
+from src.factory.assemble import build_system_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +26,16 @@ vraksha_agent = attach_registry_tools(vraksha_agent)
 @vraksha_agent.system_prompt
 async def apply_governance(context: RunContext[VrakshaDeps]) -> str:
     """
-        The Governance Membrane: Injects Identity, Rules, and Memory.
-        Ensures the agent is born into Vraksha's specific context every session.
+    Governance Membrane: delegates all prompt assembly to the factory.
+    Engine stays clean — factory owns every string.
     """
     essential_context = await context.deps.memory.get_essential_context_async()
-    
-    return f"""
-    # SYSTEM RULES (IMMUTABLE)
-    {context.deps.rules}
 
-    # YOUR IDENTITY (SOUL)
-    {context.deps.soul}
-
-    # RELEVANT CONTEXT (TRI-STORE)
-    {essential_context}
-    """
+    return build_system_prompt(
+        soul=context.deps.soul,
+        rules=context.deps.rules,
+        essential_context=essential_context,
+    )
 
 # ==============================================================================
 # TOOL REGISTRATION: Ports legacy tools and skills to the new engine

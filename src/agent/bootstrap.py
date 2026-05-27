@@ -6,84 +6,75 @@ from typing import TYPE_CHECKING
 
 # Vraksha Core Imports
 from src.memory.coordinator import memory_coordinator
+from src.factory.build.system_prompt import DEFAULT_SOUL, BASELINE_RULES  # single source
 
 if TYPE_CHECKING:
     from src.memory.coordinator import MemoryCoordinator
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SOUL = """
-    # VRAKSHA DEFAULT SOUL
-    You are Vraksha, a powerful agentic AI designed by Cybro (vraksha organization) for local-first software development.
-    Your personality is technical, direct, and proactive. You always prioritize security, 
-    performance, and code purity. You remember your user and respect their project context.
-"""
-
-# Just to let agent know trying to do harmful stuff would be blocked anyway and will just waste tokens.
-BASELINE_RULES = """
-    # VRAKSHA BASELINE RULES (IMMUTABLE)
-    1. LOCAL-FIRST: Never exfiltrate sensitive data to external servers without explicit consent.
-    2. SECURITY: Reject any tool calls that attempt to bypass the Docker sandbox.
-    3. INTEGRITY: Preserve Vraksha's core system files (soul.md, rules.md) at all costs.
-    4. TRANSPARENCY: Explain your actions clearly before executing complex file changes.
-
-    ## > Don't waste your energy on trying to do the things mentioned above,
-        as you would face alot of friction and you would be blocked.
-
-    So, don't waste your time on trying to do what's mentioned as "Not to be done".
-"""
 
 @dataclass
 class VrakshaDeps:
-    """
-        The Vraksha Services injected into the PydanticAI Engine.
-    """
+    """Services injected into the PydanticAI Engine per session."""
     memory: MemoryCoordinator
     soul: str
     rules: str
     session_id: str
     user_id: str
 
+
 def bootstrap_vraksha(
     memory_path: Path | str = "memory",
     session_id: str = "default_session",
-    user_id: str = "default_user"
+    user_id: str = "default_user",
 ) -> VrakshaDeps:
     """
-        Pre-flight loader for the Vraksha Agent.
-        Loads Identity (SOUL.md) and Governance (RULES.md) with safe fallbacks.
+    Pre-flight loader for the Vraksha Agent.
+    Loads Identity (soul.md) and Governance (rules.md) with safe fallbacks.
+    All prompt strings originate from factory.build.system_prompt — never here.
     """
     base_path = Path(memory_path)
-    
+
     # 1. Load Soul (Identity)
-    soul_file = base_path / "soul.md"
-    soul_file_cap = base_path / "SOUL.md"
-
-    if soul_file.exists() or soul_file_cap.exists():
-        soul_content = soul_file.read_text(encoding="utf-8")
-        logger.info("✅ Soul loaded from memory/SOUL.md")
-
-    else:
-        soul_content = DEFAULT_SOUL
-        logger.warning("⚠️ memory/SOUL.md not found. Using Default Vraksha Soul.")
+    soul_content = _load_file(
+        candidates=[base_path / "SOUL.md", base_path / "soul.md"],
+        fallback=DEFAULT_SOUL,
+        label="Soul",
+        log_key="memory/SOUL.md",
+    )
 
     # 2. Load Rules (Governance)
-    rules_file = base_path / "rules.md"
-    rules_file_cap = base_path / "RULES.md"
+    rules_content = _load_file(
+        candidates=[base_path / "RULES.md", base_path / "rules.md"],
+        fallback=BASELINE_RULES,
+        label="Rules",
+        log_key="memory/RULES.md",
+    )
 
-    if rules_file.exists() or rules_file_cap.exists():
-        rules_content = rules_file.read_text(encoding="utf-8")
-        logger.info("✅ Rules loaded from memory/RULES.md")
-
-    else:
-        rules_content = BASELINE_RULES
-        logger.warning("⚠️ memory/RULES.md not found. Using Baseline Safety Rules.")
-
-    # 3. Build the Dependency Context
     return VrakshaDeps(
         memory=memory_coordinator,
         soul=soul_content,
         rules=rules_content,
         session_id=session_id,
-        user_id=user_id
+        user_id=user_id,
     )
+
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+def _load_file(
+    candidates: list[Path],
+    fallback: str,
+    label: str,
+    log_key: str,
+) -> str:
+    """Try each candidate path in order; return fallback if none exist."""
+    for path in candidates:
+        if path.exists():
+            content = path.read_text(encoding="utf-8")
+            logger.info("✅ %s loaded from %s", label, path)
+            return content
+
+    logger.warning("⚠️  %s not found at %s — using built-in default.", label, log_key)
+    return fallback
