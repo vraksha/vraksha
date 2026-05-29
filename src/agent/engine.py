@@ -193,9 +193,18 @@ def agent_bridge(messages: list[dict]) -> dict:
 
     # 4. Resilient Execution Loop
     last_error = None
+    provider_errors = []
 
-    for model_inst in model_chain:
+    attempted_models = []
+
+    for model_candidate in model_chain:
+        model_inst = None
         try:
+            model_inst = model_candidate.instantiate()
+            if not model_inst:
+                raise RuntimeError(f"Provider {model_candidate} could not be initialized.")
+
+            attempted_models.append(model_inst)
             logger.info(f"🚀 Attempting run with: {model_inst}")
             result = vraksha_agent.run_sync(
                 last_query, 
@@ -207,10 +216,12 @@ def agent_bridge(messages: list[dict]) -> dict:
 
         except Exception as e:
             from src.error_handlers.extract import extract_error_info
-            last_error = extract_error_info(e, model_inst)
+            failed_model = model_inst or model_candidate
+            last_error = extract_error_info(e, failed_model)
+            provider_errors.append((str(failed_model), last_error))
             logger.warning(
                 "⚠️ Provider %s failed | status=%s | model=%s | error=%s%s",
-                model_inst,
+                failed_model,
                 last_error["status_code"],
                 last_error["model_name"],
                 last_error["message"],
@@ -219,35 +230,53 @@ def agent_bridge(messages: list[dict]) -> dict:
             continue
 
     # 5. Agentic Failure Report (The Last Stand)
-    # If we reached here, every single brain we have is broken or unavailable.
-    help_line = (
-        f"Help   : {last_error['help_url']}"
-        if last_error.get("help_url")
+    # If we reached here, every configured provider failed.
+    primary_failure = provider_errors[0][1] if provider_errors else last_error
+    primary_provider = provider_errors[0][0] if provider_errors else "unknown"
+    retry_line = (
+        f"        › Retry    : Provider suggested retrying after {primary_failure['retry_after']}"
+        if primary_failure.get("retry_after")
         else ""
     )
+    help_line = f"        › Help     : {primary_failure['help_url']}" if primary_failure.get("help_url") else ""
+    detail_lines = primary_failure.get("details") or []
+    primary_details = "\n".join(
+        f"            {line}"
+        for line in detail_lines[:4]
+    )
+    primary_details_block = f"        › Details  :\n{primary_details}" if primary_details else ""
+    failure_lines = "\n".join(
+        (
+            f"        › {provider}: "
+            f"{error['category']} | status={error['status_code']} | "
+            f"model={error['model_name']} | {error['message']}"
+        )
+        for provider, error in provider_errors
+    )
+
     error_summary = f"""
         ▲ Vraksha: COGNITIVE BLOCKAGE DETECTED
         ────────────────────────────────────────────────────────────
-        I attempted to reach my primary and fallback providers, but they all 
-        returned errors. I am currently unable to process your request.
+        I could not complete the request because every configured provider failed.
 
-        DIAGNOSTIC DETAILS:
-        › Last Error Faced:
-            Status : {last_error["status_code"]}
-            Model  : {last_error["model_name"]}
-            Error  : {last_error["message"]}
-            {help_line}
-        › Attempted Providers: {', '.join(str(m) for m in model_chain)}
+        PRIMARY FAILURE:
+        › Provider : {primary_provider}
+        › Status   : {primary_failure["status_code"]}
+        › Model    : {primary_failure["model_name"]}
+        › Cause    : {primary_failure["likely_cause"]}
+        › Error    : {primary_failure["message"]}
+{primary_details_block}
+{retry_line}
+{help_line}
 
-        WHAT MIGHT BE WRONG:
-        1. API Credit Depletion: One or more of your accounts might be out of credits.
-        2. Authentication Failure: The keys in your .env might be invalid or expired.
-        3. Network Isolation: I might be having trouble reaching external LLM servers.
+        WHAT TO DO:
+        › {primary_failure["suggested_fix"]}
 
-        HOW TO FIX:
-        › Check your .env file in the root directory.
-        › Verify your API keys on the Anthropic/OpenAI/Google dashboards.
-        › Run 'vraksha build' if you recently changed your environment.
+        PROVIDER ATTEMPTS:
+{failure_lines}
+
+        FALLBACK STATUS:
+        › Attempted Providers: {', '.join(str(m) for m in attempted_models) or ', '.join(str(m) for m in model_chain)}
         ────────────────────────────────────────────────────────────
     """
     return error_summary

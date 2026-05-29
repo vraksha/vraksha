@@ -2,8 +2,9 @@ import os
 import yaml
 import logging
 import sys
+from dataclasses import dataclass
 from get_root import root
-from src.utils.api_keys import get_api_key
+from src.utils.api_keys import get_api_key, get_api_key_source, normalize_provider_name
 
 logger = logging.getLogger(__name__)
 
@@ -114,33 +115,97 @@ PROVIDERS_PRIORITY_ORDER = {
     "bedrock": BedrockConverseModel,
 }
 
-# Target environment variables mapping that PydanticAI / basic SDK wrappers strictly check
+
+@dataclass(frozen=True)
+class ModelCandidate:
+    provider_name: str
+    model_name: str
+
+    def instantiate(self):
+        return get_model_instance(self.provider_name, self.model_name)
+
+    def __str__(self):
+        model_class = PROVIDERS_PRIORITY_ORDER.get(self.provider_name)
+        class_name = model_class.__name__ if model_class else self.provider_name
+        return f"{class_name}({self.model_name})"
+
+# Target environment variables mapping that PydanticAI / basic SDK wrappers strictly check.
+# Each normalized key is copied into every SDK env var for that provider so aliases
+# cannot accidentally route a request through a different configured account.
 PYDANTIC_AI_ENV_MAPPING = {
-    "openai": "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "google": "GEMINI_API_KEY",  # PydanticAI maps google: string short-hands directly here
-    "xai": "XAI_API_KEY",
-    "mistral": "MISTRAL_API_KEY",
-    "cohere": "CO_API_KEY",  
-    "groq": "GROQ_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
-    "cerebras": "CEREBRAS_API_KEY",
-    "huggingface": "HF_TOKEN",
-    "ollama": "OLLAMA_BASE_URL",
+    "openai": ("OPENAI_API_KEY",),
+    "anthropic": ("ANTHROPIC_API_KEY",),
+    "google": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    "xai": ("XAI_API_KEY",),
+    "mistral": ("MISTRAL_API_KEY",),
+    "cohere": ("CO_API_KEY",),
+    "groq": ("GROQ_API_KEY",),
+    "openrouter": ("OPENROUTER_API_KEY",),
+    "cerebras": ("CEREBRAS_API_KEY",),
+    "huggingface": ("HF_TOKEN",),
+    "ollama": ("OLLAMA_BASE_URL",),
 }
 
 def _normalize_provider(provider_name: str) -> str:
     """Normalizes informal provider aliases into strict registry keys."""
-    name = provider_name.lower().strip()
-    aliases = {
-        "claude": "anthropic",
-        "chatgpt": "openai",
-        "gemini": "google",
-        "x": "xai",
-        "twitter": "xai"
-    }
-    return aliases.get(name, name)
-    
+    return normalize_provider_name(provider_name)
+
+
+def _set_provider_env(provider_name: str, value: str):
+    for target_env in PYDANTIC_AI_ENV_MAPPING.get(provider_name, ()):
+        os.environ[target_env] = value.strip()
+
+
+def _normalize_model_config(config: dict) -> dict:
+    """Merge alias provider sections in models.yaml into canonical provider keys."""
+    normalized = {}
+
+    for provider_name, provider_config in config.items():
+        canonical_name = _normalize_provider(provider_name)
+
+        if canonical_name in normalized:
+            logger.warning(
+                "Duplicate model config for provider alias '%s'; keeping earlier '%s' config.",
+                provider_name,
+                canonical_name,
+            )
+            continue
+
+        normalized[canonical_name] = provider_config
+
+    return normalized
+
+
+def _load_model_config() -> dict:
+    if not _CONFIG_PATH.exists():
+        return _normalize_model_config(DEFAULT_MODELS)
+
+    try:
+        with open(_CONFIG_PATH, "r") as f:
+            config = yaml.safe_load(f) or DEFAULT_MODELS
+
+        if not isinstance(config, dict):
+            logger.warning("models.yaml did not contain a provider map; using defaults...")
+            return _normalize_model_config(DEFAULT_MODELS)
+
+        return _normalize_model_config(config)
+
+    except Exception as e:
+        logger.warning(f"Failed to load models.yaml ({e}), using defaults...")
+        return _normalize_model_config(DEFAULT_MODELS)
+
+
+def _provider_has_runtime_config(provider_name: str) -> bool:
+    if provider_name == "bedrock":
+        return bool(
+            get_api_key("bedrock")
+            or os.getenv("AWS_REGION")
+            or os.getenv("AWS_DEFAULT_REGION")
+            or os.getenv("AWS_PROFILE")
+        )
+
+    return bool(get_api_key(provider_name))
+
     
 def get_model_instance(provider_name: str, model_name: str):
     """Creates an initialized PydanticAI model instance synced with ApiKeyStore."""
@@ -153,16 +218,13 @@ def get_model_instance(provider_name: str, model_name: str):
             logger.warning(f"Key/Token for {provider_name} is ABSENT in ApiKeyStore.")
             return None
         
-        # Bridge the gap between your custom schema and what PydanticAI expects natively
-        target_env = PYDANTIC_AI_ENV_MAPPING.get(provider_name)
-        if target_env:
-            os.environ[target_env] = key.strip()
+        _set_provider_env(provider_name, key)
             
     elif provider_name == "ollama":
         # Ensure OLLAMA_BASE_URL is explicitly back-populated if set in your schema
         base_url = get_api_key("ollama")
         if base_url:
-            os.environ["OLLAMA_BASE_URL"] = base_url.strip()
+            _set_provider_env("ollama", base_url)
 
     try:
         model_class = PROVIDERS_PRIORITY_ORDER.get(provider_name)
@@ -178,20 +240,17 @@ def get_model_instance(provider_name: str, model_name: str):
 
 def get_model_priorities(task: str):
     """
-    Returns a list of initialized PydanticAI Model instances, 
-    prioritized by available keys and models.yaml config.
+    Returns lazy model candidates, prioritized by available provider config.
+    Candidates are instantiated only when the engine actually attempts them.
     """
-    config = DEFAULT_MODELS
-    if _CONFIG_PATH.exists():
-        try:
-            with open(_CONFIG_PATH, "r") as f:
-                config = yaml.safe_load(f) or DEFAULT_MODELS
-        except Exception as e:
-            logger.warning(f"Failed to load models.yaml ({e}), using defaults...")
-
-    instances = []
+    config = _load_model_config()
+    candidates = []
     
     for provider_name in PROVIDERS_PRIORITY_ORDER.keys():
+        if not _provider_has_runtime_config(provider_name):
+            logger.debug("Provider %s is not configured; skipping.", provider_name)
+            continue
+
         provider_config = config.get(provider_name, {})
         
         if isinstance(provider_config, dict):
@@ -205,9 +264,9 @@ def get_model_priorities(task: str):
             model_name = task_defaults.get(task) or task_defaults.get("orchestrator", "unknown")
 
         if model_name and model_name != "unknown":
-            model_inst = get_model_instance(provider_name, model_name)
-            if model_inst:
-                instances.append(model_inst)
+            key_source = get_api_key_source(provider_name)
+            if key_source:
+                logger.debug("Provider %s configured from %s.", provider_name, key_source)
+            candidates.append(ModelCandidate(provider_name, model_name))
 
-    return instances
-
+    return candidates

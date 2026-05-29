@@ -4,6 +4,7 @@ factory/assemble.py
 The prompt factory. One job: accept runtime context, return a ready-to-inject
 system prompt string. Engine and bootstrap both call this — nothing else builds prompts.
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 

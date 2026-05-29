@@ -62,8 +62,22 @@ Here’s where we’re heading in the long run:
 
 ### 1. Get it installed
 
+Linux:
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vraksha/vraksha/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/vraksha/vraksha/main/install-linux.sh | bash
+```
+
+WSL:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vraksha/vraksha/main/install-wsl.sh | bash
+```
+
+macOS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vraksha/vraksha/main/install-macos.sh | bash
 ```
 > After that, just run `vraksha` to start your first session.
 
@@ -158,5 +172,4 @@ GITHUB_TOKEN=your_key_here #for slop detector expert/skill
   <br>
   <p><i>Note: The current version has the local-first memory and security foundations ready to go. We're rolling out the rest of the roadmap features one by one.</i></p>
 </div>
-
 

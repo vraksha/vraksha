@@ -5,7 +5,25 @@
 # ==============================================================================
 # docker
 INSTALL_PATH="/usr/local/bin/vraksha"
-SCRIPT_PATH="$(realpath "$0")"
+resolve_script_path() {
+    local source="$1"
+    while [ -L "$source" ]; do
+        local dir
+        dir="$(cd -P "$(dirname "$source")" >/dev/null 2>&1 && pwd)"
+        local link
+        link="$(readlink "$source")"
+        case "$link" in
+            /*) source="$link" ;;
+            *) source="$dir/$link" ;;
+        esac
+    done
+
+    local dir
+    dir="$(cd -P "$(dirname "$source")" >/dev/null 2>&1 && pwd)"
+    printf "%s/%s\n" "$dir" "$(basename "$source")"
+}
+
+SCRIPT_PATH="$(resolve_script_path "$0")"
 SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
 
 # palette
@@ -34,6 +52,27 @@ CURRENT_PHASE="resolving"
 FORCE_BUILD=false
 CLEAN=false
 PURGE=false
+
+OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
+IS_MAC=false
+IS_LINUX=false
+IS_WSL=false
+SUPPORTED_PLATFORM=false
+
+case "$OS_NAME" in
+    Darwin)
+        IS_MAC=true
+        SUPPORTED_PLATFORM=true
+        ;;
+    Linux)
+        IS_LINUX=true
+        SUPPORTED_PLATFORM=true
+        ;;
+esac
+
+if [ "$IS_LINUX" = true ] && grep -qiE "microsoft|wsl" /proc/version 2>/dev/null; then
+    IS_WSL=true
+fi
 
 # arguments
 for arg in "$@"; do
@@ -132,10 +171,127 @@ stop_global_spinner() {
     fi
 }
 
+ensure_supported_platform() {
+    if [ "$SUPPORTED_PLATFORM" = true ]; then
+        return 0
+    fi
+
+    printf "  ${R}✗${NC}  ${B}unsupported platform${NC}\n"
+    printf "  ${M}The vraksha command currently supports Linux, WSL, and macOS.${NC}\n"
+    exit 1
+}
+
+ensure_docker_compose() {
+    if ! docker compose version >/dev/null 2>&1; then
+        printf "  ${R}✗${NC}  ${B}docker compose is not available${NC}\n"
+        printf "  ${M}Install Docker Desktop or the Docker Compose plugin, then try again.${NC}\n"
+        exit 1
+    fi
+}
+
+start_docker_if_possible() {
+    if docker info >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if [ "$IS_MAC" = true ]; then
+        if command -v open >/dev/null 2>&1; then
+            printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting docker desktop...${NC}\n"
+            open -gj -a Docker >/dev/null 2>&1 || open -a Docker >/dev/null 2>&1 || true
+        fi
+    elif command -v systemctl >/dev/null 2>&1 && systemctl is-system-running >/dev/null 2>&1; then
+        if ! systemctl is-active --quiet docker; then
+            printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting docker service (systemd)...${NC}\n"
+            sudo systemctl start docker
+        fi
+    elif command -v service >/dev/null 2>&1 && [ -x /etc/init.d/docker ]; then
+        if ! service docker status >/dev/null 2>&1; then
+            if [ "$IS_WSL" = true ]; then
+                printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting docker service (wsl/sysvinit)...${NC}\n"
+            else
+                printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting docker service (sysvinit)...${NC}\n"
+            fi
+            sudo service docker start
+        fi
+    fi
+
+    local attempts=0
+    while [ "$attempts" -lt 30 ]; do
+        if docker info >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+        attempts=$((attempts + 1))
+    done
+
+    return 1
+}
+
+handle_docker_unavailable() {
+    local docker_error="$1"
+
+    if printf "%s" "$docker_error" | grep -qi "permission denied"; then
+        if [ "$IS_LINUX" = true ] && command -v usermod >/dev/null 2>&1; then
+            printf "  ${R}✗${NC}  ${B}permission denied${NC}\n"
+            printf "  ${M}running setup fix...${NC}\n"
+            sudo usermod -aG docker "$USER"
+            printf "  ${Y}!${NC}  ${T}Please run:${NC} ${B}newgrp docker${NC} ${T}then try again.${NC}\n"
+            exit 1
+        fi
+    fi
+
+    printf "  ${R}✗${NC}  ${B}docker is not running${NC}\n"
+    if [ "$IS_MAC" = true ]; then
+        printf "  ${M}Start Docker Desktop, wait until it is ready, then try again.${NC}\n"
+    elif [ "$IS_WSL" = true ]; then
+        printf "  ${M}Start Docker in WSL or enable Docker Desktop WSL integration, then try again.${NC}\n"
+    else
+        printf "  ${M}Start the Docker daemon, then try again.${NC}\n"
+    fi
+    exit 1
+}
+
+ensure_env_file() {
+    if [ -f ".env.local" ]; then
+        return 0
+    fi
+
+    if [ -f ".env" ]; then
+        cp .env .env.local
+        printf "  ${G}${GL_CHECK}${NC}  ${T}created${NC} ${B}.env.local${NC} ${M}from .env${NC}\n"
+        return 0
+    fi
+
+    if [ -f ".env.example" ]; then
+        cp .env.example .env.local
+        printf "  ${G}${GL_CHECK}${NC}  ${T}created${NC} ${B}.env.local${NC} ${M}from template${NC}\n"
+        printf "  ${Y}${GL_ARROW}${NC}  ${M}edit ${NC}${B}.env.local${NC}${M} with your api keys before running again${NC}\n\n"
+        exit 0
+    fi
+
+    printf "  ${R}✗${NC}  ${B}missing environment file${NC}  ${M}in ${SCRIPT_DIR}${NC}\n\n"
+    exit 1
+}
+
 # == 1. workspace check ==================================================
 cd "$SCRIPT_DIR"
 
 print_header
+
+ensure_supported_platform
+
+# Check if docker is even installed
+if ! command -v docker >/dev/null 2>&1; then
+    printf "  ${R}✗${NC}  ${B}docker is not installed${NC}\n"
+    exit 1
+fi
+
+ensure_docker_compose
+
+if ! start_docker_if_possible; then
+    DOCKER_ERROR="$(docker info 2>&1 || true)"
+    handle_docker_unavailable "$DOCKER_ERROR"
+fi
 
 # == 1.5 System Audit & Redundancy Check ==
 if [ "$CLEAN" = true ] || [ "$PURGE" = true ]; then
@@ -150,33 +306,7 @@ if [ "$CLEAN" = true ] || [ "$PURGE" = true ]; then
     printf "  ${G}${GL_CHECK}${NC}  ${T}cleanup complete${NC}\n\n"
 fi
 
-# Check if docker is even installed
-if ! command -v docker &> /dev/null; then
-    printf "  ${R}✗${NC}  ${B}docker is not installed${NC}\n"
-    exit 1
-fi
-
-# Try to start docker if it's idle
-if command -v systemctl &> /dev/null && systemctl is-system-running &> /dev/null; then
-    if ! systemctl is-active --quiet docker; then
-        printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting docker service (systemd)...${NC}\n"
-        sudo systemctl start docker
-    fi
-elif command -v service &> /dev/null; then
-    if ! service docker status &> /dev/null; then
-        printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting docker service (wsl/sysvinit)...${NC}\n"
-        sudo service docker start
-    fi
-fi
-
-# Check permissions
-if ! docker info &> /dev/null; then
-    printf "  ${R}✗${NC}  ${B}permission denied${NC}\n"
-    printf "  ${M}running setup fix...${NC}\n"
-    sudo usermod -aG docker $USER
-    printf "  ${Y}!${NC}  ${T}Please run:${NC} ${B}newgrp docker${NC} ${T}then try again.${NC}\n"
-    exit 1
-fi
+ensure_env_file
 
 # -------------------------------------------------
 # 5️⃣  Ensure the Vraksha container is running
@@ -209,31 +339,11 @@ fi
 
 # System Link Validation
 if [ -L "$INSTALL_PATH" ]; then
-    CURRENT_LINK=$(readlink -f "$INSTALL_PATH")
+    CURRENT_LINK=$(resolve_script_path "$INSTALL_PATH")
     if [ "$CURRENT_LINK" != "$SCRIPT_PATH" ]; then
         printf "  ${Y}${GL_ARROW}${NC}  ${M}system link points to another version${NC}\n"
         printf "  ${D}current: $CURRENT_LINK${NC}\n"
         printf "  ${D}project: $SCRIPT_PATH${NC}\n\n"
-    fi
-fi
-
-ENV_FOUND=false
-for f in .env.local .env; do
-    if [ -f "$f" ]; then
-        ENV_FOUND=true
-        break
-    fi
-done
-
-if [ "$ENV_FOUND" = false ]; then
-    if [ -f ".env.example" ]; then
-        cp .env.example .env
-        printf "  ${G}${GL_CHECK}${NC}  ${T}created${NC} ${B}.env${NC} ${M}from template${NC}\n"
-        printf "  ${Y}${GL_ARROW}${NC}  ${M}edit ${NC}${B}.env${NC}${M} with your api keys before running again${NC}\n\n"
-        exit 0
-    else
-        printf "  ${R}✗${NC}  ${B}missing environment file${NC}  ${M}in ${SCRIPT_DIR}${NC}\n\n"
-        exit 1
     fi
 fi
 

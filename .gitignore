@@ -31,9 +31,6 @@ FUTURE_SELF_REVIEW_PLAN.md
 
 # Architecture Backups & Legacy Residue
 .architecture/*
-.architecture/*_backups/
-.architecture/hermes/
-.architecture/vraksha/py_backups/
 
 # Documentation
 docs/
@@ -43,3 +40,8 @@ progress/
 
 #Examples
 examples/
+
+# Agents
+.codex/
+.claude
+.agents/
