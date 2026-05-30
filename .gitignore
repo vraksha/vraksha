@@ -5,6 +5,7 @@ __pycache__/
 venv/
 .venv/
 .env*
+!.env.example
 .DS_Store
 .pytest_cache/
 
@@ -19,7 +20,7 @@ vraksha.log
 # memory/soul.md
 # !memory/IMMUTABLE.yaml
 
-memory/
+/memory/
 
 # Exclude SQLite and Temp Files
 *.sqlite3
@@ -34,13 +35,13 @@ FUTURE_SELF_REVIEW_PLAN.md
 .architecture/*
 
 # Documentation
-docs/
+/docs/
 
 # Progress
-progress/
+/progress/
 
 #Examples
-examples/
+/examples/
 
 #Backups
 legacy_capabilities_backup/
