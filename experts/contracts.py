@@ -7,10 +7,11 @@ from src.capabilities import (
     ErrorInfo,
     Usage,
 )
-from src.agent.orchestrator import AgentOrchestrator, Orchestrator
-from src.agent.utils import (
+from src.agent.orchestration import (
+    AgentOrchestrator,
     ExpertMessageRequest,
     ObservedExpertMessage,
+    Orchestrator,
     OrchestratorDecision,
 )
 

@@ -1,3 +1,10 @@
+"""Registry module discovery.
+
+The registry is decorator-driven, so tools and experts exist only after Python
+imports their modules. This file finds likely capability modules while avoiding
+runtime data folders, virtualenvs, caches, tests, and archived legacy code.
+"""
+
 from __future__ import annotations
 
 import importlib
@@ -20,9 +27,12 @@ EXCLUDED_DIRS = {
     "__pycache__",
     "assets",
     "legacy_capabilities_backup",
-    "memory",
     "tests",
     "venv",
+}
+
+EXCLUDED_ROOT_DIRS = {
+    "memory",
 }
 
 EXCLUDED_FILES = {
@@ -30,7 +40,6 @@ EXCLUDED_FILES = {
 }
 
 EXCLUDED_MODULES = {
-    "src.agent.engine",
     "src.agent.loop",
 }
 
@@ -60,6 +69,7 @@ def discover_registry_modules(project_root: Path | None = None) -> list[tuple[st
 
 
 def iter_project_module_names(project_root: Path) -> list[str]:
+    """Return importable module names that look like registry capability modules."""
     module_names: list[str] = []
 
     for path in sorted(project_root.rglob("*.py")):
@@ -74,8 +84,11 @@ def iter_project_module_names(project_root: Path) -> list[str]:
 
 
 def should_skip_path(project_root: Path, path: Path) -> bool:
+    """Decide whether a Python file should be ignored during discovery."""
     relative = path.relative_to(project_root)
     if path.name in EXCLUDED_FILES:
+        return True
+    if relative.parts and relative.parts[0] in EXCLUDED_ROOT_DIRS:
         return True
     if any(part in EXCLUDED_DIRS for part in relative.parts):
         return True
@@ -83,6 +96,13 @@ def should_skip_path(project_root: Path, path: Path) -> bool:
 
 
 def looks_like_registry_module(path: Path) -> bool:
+    """Check source text for registry imports plus @tool/@expert decorators.
+
+    Basic capability modules may use the public shorthand
+    ``from registry import tool``. Primitive or internal modules may still use
+    ``from registry.register import tool``. Discovery accepts both forms so the
+    authoring import can stay small without hiding advanced registration paths.
+    """
     try:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
@@ -91,12 +111,14 @@ def looks_like_registry_module(path: Path) -> bool:
     imports_registry_decorator = (
         "from registry.register import" in text
         or "import registry.register" in text
+        or "from registry import" in text
     )
     uses_registry_decorator = "@tool" in text or "@expert" in text
     return imports_registry_decorator and uses_registry_decorator
 
 
 def module_name_from_path(project_root: Path, path: Path) -> str | None:
+    """Convert a project-relative Python path into an import module name."""
     relative = path.relative_to(project_root).with_suffix("")
     parts = relative.parts
 

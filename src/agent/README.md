@@ -31,12 +31,12 @@ Important files:
 * `runtime.py` creates and exports the live agent.
 * `bootstrap.py` builds `VrakshaDeps`.
 * `governance.py` registers the system prompt.
+* `memory.py` owns the agent memory gateway.
 * `initialize_tools/bootstrap_tools.py` discovers registry modules and mounts
   enabled tools/experts.
 * `initialize_tools/tool_adapter.py` converts registry entries into PydanticAI
   tool functions.
 * `bridge.py` keeps the older loop compatible with the new agent runtime.
-* `engine.py` is now only a compatibility export surface.
 
 ## Dependencies And Context
 
@@ -55,16 +55,46 @@ to judge whether a request is relevant, safe, useful, and permitted.
 
 ## Governance Flow
 
-`governance.py` owns prompt assembly.
+`governance.py` owns the direct PydanticAI system-prompt registration. The
+prompt-building helper lives in `prompting/governance_prompt.py`.
 
 ```text
 RunContext[VrakshaDeps]
-    -> memory.get_essential_context_async()
+    -> AgentMemory(context.deps.memory).essential_context()
+    -> prompting/governance_prompt.py
     -> build_system_prompt(soul, rules, essential_context)
     -> PydanticAI system prompt
 ```
 
 Prompt construction stays outside `runtime.py` so agent creation remains small.
+The LLM boundary stays top-level in `governance.py`; supporting prompt logic
+lives in `prompting/`.
+
+## Memory Is Internal
+
+Memory search is not an external primitive tool. It is part of the agent
+orchestrator's cognition.
+
+`memory.py` exposes `AgentMemory`, which wraps the injected memory coordinator:
+
+```text
+Agent / Governance / Orchestrator
+    -> AgentMemory
+    -> MemoryCoordinator
+    -> Local memory index
+```
+
+This keeps memory close to the agent's identity, governance, and decision-making
+context. External tools are hands; memory is part of the brain.
+
+`AgentMemory` applies lightweight bounds before calling the underlying memory
+engine:
+
+* empty search queries return no results
+* search limits are capped by `AgentMemoryLimits`
+* stored content is trimmed to a configured maximum
+* trust values are clamped to `0.0..1.0`
+* writes require structured `source_id`, `kind`, `title`, and `content`
 
 ## Capability Mounting
 
@@ -74,17 +104,24 @@ At startup, `attach_registry_tools(agent)` performs:
 discover_registry_modules()
     -> decorators populate Registry
     -> ToolAdapter(agent).register_all()
+    -> ToolAdapter forwards calls through CapabilityBroker
     -> LLM sees safe tool names
 ```
 
-Today, enabled registry entries are still directly mounted as PydanticAI tools.
-The intended next step is to put the broker between the agent and the primitive
-implementations so the LLM asks for capabilities rather than directly invoking
-tool classes.
+Enabled registry entries are mounted as PydanticAI tools for model visibility,
+but runtime calls flow through `CapabilityBroker`. Tool and expert authors do
+not need to import the broker; registration plus adapter mounting gives them
+the broker's policy, result normalization, and audit boundary.
 
-Current smoke capabilities should remain boring and minimal:
+Current primitive capability entries:
 
-* `tool.universal.echo`
+* `tool.agent.invoke`
+* `tool.filesystem.operate`
+* `tool.llm.generate`
+* `tool.mcp.call`
+* `tool.shell.run`
+* `tool.system.inspect`
+* `tool.web.fetch`
 * `expert.architecture.smoke_check`
 
 ## Expert Communication Rule
@@ -109,24 +146,24 @@ The orchestrator observes every request before anything is allowed.
 
 Expert communication is split into focused files:
 
-* `utils/expert_messages.py`
+* `orchestration/messages.py`
   Defines `ExpertMessageRequest`.
 
-* `utils/orchestration_decision.py`
+* `orchestration/decision.py`
   Defines `OrchestratorDecision` and the `allow` / `block` decision shape.
 
-* `orchestration_policy.py`
+* `orchestration/policy.py`
   Defines `ExpertMessagePolicy`, the fail-closed policy layer.
 
-* `utils/orchestration_log.py`
+* `orchestration/log.py`
   Defines `ObservedExpertMessage`, the audit record pairing request and decision.
 
-* `guardrails.py`
+* `orchestration/guardrails.py`
   Defines general orchestration guardrails for recursion, fanout, prompt
   injection markers, payload size, session/user mismatches, and bulk memory
   export attempts.
 
-* `orchestrator.py`
+* `orchestration/orchestrator.py`
   Defines `AgentOrchestrator`, which applies expert-message policy, exposes
   guardrail review, and records observations.
 
@@ -157,7 +194,8 @@ behavior can be trusted.
 
 Current foundation:
 
-* Long-term memory is injected through `VrakshaDeps.memory`.
+* Long-term memory is injected through `VrakshaDeps.memory` and accessed through
+  `AgentMemory`.
 * Session and user identity are carried through `VrakshaDeps`.
 * Expert-to-expert messages are blocked unless explicitly routed.
 * All expert messages are observable through `observed_messages`.
@@ -210,19 +248,8 @@ legacy message dicts
 ```
 
 Provider failure parsing lives in `src/error_handlers/extract.py`.
-Provider selection lives in `src/providers/client.py`.
-
-## Compatibility Layer
-
-`engine.py` intentionally remains as a tiny compatibility module:
-
-```python
-from src.agent.bridge import agent_bridge
-from src.agent.runtime import create_vraksha_agent, vraksha_agent
-```
-
-Existing imports such as `from src.agent.engine import vraksha_agent` continue
-to work, but new code should prefer the focused modules directly.
+Provider selection is exported from `src.providers` and implemented in
+`src/providers/priorities.py`.
 
 ## Current Boundaries
 

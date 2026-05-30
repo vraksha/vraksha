@@ -97,7 +97,7 @@ async def consolidate_session(messages: list[dict[str, Any]]) -> None:
     transcript = build_transcript(messages)
     if not transcript.strip(): return
 
-    from src.providers.client import get_model_priorities
+    from src.providers import get_model_priorities
     model_chain = get_model_priorities("memory")
 
     if not model_chain:

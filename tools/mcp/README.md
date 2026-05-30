@@ -7,6 +7,16 @@ The project keeps an explicit dependency on the Python `mcp` SDK and imports
 its client boundary in `tools/mcp/sdk.py`. The adapter still fails closed until a
 real server transport is configured.
 
+Current registry entry:
+
+* `tool.mcp.call`
+
+Current behavior:
+
+* validates external capability call shape
+* delegates to the MCP adapter placeholder
+* fails closed unless a real MCP server transport is configured
+
 MCP should not be the default path for internal primitive tools or expert
 communication. The fast path should stay in-process:
 

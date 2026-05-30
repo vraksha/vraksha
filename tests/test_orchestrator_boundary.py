@@ -1,10 +1,11 @@
-from src.agent.orchestration_policy import ExpertMessagePolicy
-from src.agent.orchestrator import Orchestrator
-from src.agent.utils import ExpertMessageRequest
+"""Tests for agent-owned expert communication orchestration."""
+
+from src.agent.orchestration import ExpertMessagePolicy, ExpertMessageRequest, Orchestrator
 from src.capabilities import Actor
 
 
 def test_orchestrator_observes_and_blocks_unknown_expert_routes():
+    """Unknown expert-to-expert routes are observed and blocked by default."""
     orchestrator = Orchestrator()
     request = ExpertMessageRequest(
         source=Actor(kind="expert", name="planner"),
@@ -24,6 +25,7 @@ def test_orchestrator_observes_and_blocks_unknown_expert_routes():
 
 
 def test_orchestrator_allows_explicit_expert_routes():
+    """Explicitly allowed expert routes can pass policy review."""
     orchestrator = Orchestrator(
         policy=ExpertMessagePolicy(allowed_routes={("planner", "review")}),
     )
@@ -43,6 +45,7 @@ def test_orchestrator_allows_explicit_expert_routes():
 
 
 def test_orchestrator_can_block_allowed_route_by_topic():
+    """Blocked topics override otherwise allowed expert routes."""
     orchestrator = Orchestrator(
         policy=ExpertMessagePolicy(
             allowed_routes={("planner", "research")},

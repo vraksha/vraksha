@@ -1,20 +1,29 @@
+"""Policy checks for expert-to-expert communication.
+
+This is intentionally fail-closed. An expert route must be explicitly allowed,
+and even allowed routes can be blocked by topic or missing justification.
+"""
+
 from __future__ import annotations
 
-from src.agent.utils import ExpertMessageRequest, OrchestratorDecision
+from .decision import OrchestratorDecision
+from .messages import ExpertMessageRequest
 
 
 class ExpertMessagePolicy:
-    """Fail-closed policy for expert-to-expert communication."""
+    """Decide whether one expert may send a message to another expert."""
 
     def __init__(
         self,
         allowed_routes: set[tuple[str, str]] | None = None,
         blocked_topics: set[str] | None = None,
     ) -> None:
+        """Create a policy from explicit route and topic allow/block sets."""
         self.allowed_routes = allowed_routes or set()
         self.blocked_topics = blocked_topics or set()
 
     def decide(self, request: ExpertMessageRequest) -> OrchestratorDecision:
+        """Return the allow/block decision for a proposed expert message."""
         if request.source.kind != "expert" or request.target.kind != "expert":
             return OrchestratorDecision(
                 request_id=request.request_id,

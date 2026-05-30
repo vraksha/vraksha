@@ -14,22 +14,87 @@ Users are NOT required to inherit from any base class.
 # Quick Start
 
 ```python
-from registry.register import tool, expert
+from registry import tool, expert
+```
+
+That import is the normal registry API for capability authors. The registry
+handles registration internals, so new tools and experts should not need to
+import registry entries, adapters, broker internals, or schema constants.
+
+Primitive capability authors may import directly from `registry.register` when
+they are intentionally working at the lower-level primitive registration layer.
+
+---
+
+# Basic Tool Registration
+
+Basic tools are normal deterministic helpers. They should provide:
+
+* `name`
+* `description`
+* `input_schema`
+* `call()`
+
+The registry supplies the standard `output_schema`.
+
+```python
+from registry import tool
+
+
+@tool(domain="demo", tags=["basic"])
+class ReadMetadata:
+    name = "read_metadata"
+    description = "Read lightweight metadata for a workspace resource."
+
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Workspace-relative path.",
+            }
+        },
+        "required": ["path"],
+    }
+
+    def call(self, tool_input: dict):
+        return {
+            "success": True,
+            "data": {"path": tool_input["path"]},
+            "error": None,
+        }
 ```
 
 ---
 
-# Tool Registration
+# Primitive Tool Registration
+
+Primitive tools are different. They are the durable execution layer and should
+be rare. If a new behavior fits an existing primitive, extend or route through
+that primitive instead of creating a new one.
+
+Primitive tools must provide the full explicit contract:
+
+* `name`
+* `description`
+* `input_schema`
+* `output_schema`
+* `call()`
+
+Tag primitive tools with `primitive`.
 
 ```python
+from registry.register import tool
+
+
 @tool(
     enabled=True,
-    domain="web",
-    tags=["read", "retrieve"]
+    domain="filesystem",
+    tags=["primitive", "workspace"]
 )
-class SearchTool:
-    name = "search_tool"
-    description = "Searches the web"
+class FilesystemOperateTool:
+    name = "operate"
+    description = "Perform a workspace-scoped filesystem operation."
 
     input_schema = {
         "type": "object",
@@ -53,13 +118,46 @@ class SearchTool:
     }
 
     def call(self, tool_input: dict):
-        query = tool_input["query"]
-        return {"success": True, "data": {"query": query}, "error": None}
+        return {"success": True, "data": {}, "error": None}
 ```
 
 ---
 
 # Expert Registration
+
+Minimal expert:
+
+```python
+from registry import expert
+
+
+@expert(domain="review", tags=["code"])
+class ReviewExpert:
+    name = "review"
+    description = "Review proposed changes for correctness, risk, and missing tests."
+
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "scope": {
+                "type": "string",
+                "description": "Files, diff, or task scope to review.",
+            }
+        },
+        "required": ["scope"],
+    }
+
+    def call(self, tool_input: dict):
+        return {
+            "success": True,
+            "data": {"scope": tool_input["scope"]},
+            "error": None,
+        }
+```
+
+If the expert module sits beside a `SKILL.md`, the registry attaches that file
+as `instruction_files` automatically. Explicit `instruction_files` remains
+supported for unusual layouts.
 
 ```python
 @expert(
@@ -79,16 +177,6 @@ class FinanceExpert:
             }
         },
         "required": ["question"],
-    }
-
-    output_schema = {
-        "type": "object",
-        "properties": {
-            "success": {"type": "boolean"},
-            "data": {"type": ["object", "null"]},
-            "error": {"type": ["string", "null"]},
-        },
-        "required": ["success"],
     }
 
     instruction_files = [
@@ -202,9 +290,9 @@ Discovery imports only Python modules that import `registry.register` and use
 
 ---
 
-# Required Fields (Tools + Experts)
+# Required And Defaulted Fields
 
-Every tool and expert MUST define:
+The registry validates these fields after applying defaults:
 
 ```python
 name
@@ -214,7 +302,13 @@ output_schema
 call()
 ```
 
-`input_schema` and `output_schema` must be JSON-schema dictionaries.
+Basic tools and experts define `name`, `description`, `input_schema`, and
+`call()`. The registry adds the standard `output_schema` if it is missing.
+
+Primitive tools define every field explicitly, including `output_schema`.
+
+`input_schema` and `output_schema`, whether explicit or defaulted, must be
+JSON-schema dictionaries.
 
 `call()` receives one dictionary containing the validated tool arguments and
 should return a dictionary, usually:
@@ -227,13 +321,22 @@ should return a dictionary, usually:
 
 # Required Fields (Experts Only)
 
-Experts MUST additionally define:
+Experts MUST additionally have:
 
 ```python
 instruction_files
 ```
 
-Example:
+The preferred layout is a colocated `SKILL.md`:
+
+```text
+experts/review/
+├── SKILL.md
+└── skill.py
+```
+
+The registry infers that file automatically. If the expert needs a different
+layout, define it explicitly:
 
 ```python
 instruction_files = [

@@ -1,3 +1,5 @@
+"""Build ordered model candidates for a task from config and available keys."""
+
 from __future__ import annotations
 
 import logging
@@ -7,12 +9,13 @@ from src.providers.config import load_model_config
 from src.providers.defaults import DEFAULT_MODELS
 from src.providers.env import provider_has_runtime_config
 from src.providers.imports import PROVIDERS_PRIORITY_ORDER
-from src.utils.api_keys import get_api_key_source
+from src.utils.api_key_utils import get_api_key_source
 
 logger = logging.getLogger(__name__)
 
 
 def get_model_priorities(task: str):
+    """Return configured model candidates that have usable runtime credentials."""
     config = load_model_config()
     candidates = []
 

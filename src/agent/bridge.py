@@ -1,3 +1,10 @@
+"""Bridge legacy message dictionaries into the current PydanticAI runtime.
+
+The terminal loop still speaks in simple OpenAI-style message dictionaries.
+This module translates that history, chooses provider fallbacks, and calls the
+central `vraksha_agent` without making the loop own orchestration details.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -7,12 +14,13 @@ from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserProm
 from src.agent.bootstrap import bootstrap_vraksha
 from src.agent.runtime import vraksha_agent
 from src.error_handlers.extract import extract_error_info
-from src.providers.client import get_model_priorities
+from src.providers import get_model_priorities
 
 logger = logging.getLogger(__name__)
 
 
 def agent_bridge(messages: list[dict]) -> str:
+    """Run the central agent against legacy loop messages and return text output."""
     deps = bootstrap_vraksha()
     pydantic_history = []
     last_query = "Hello"
@@ -85,6 +93,7 @@ def _format_provider_failure(
     attempted_models: list[object],
     model_chain: list[object],
 ) -> str:
+    """Build a readable error report after every configured provider fails."""
     primary_failure = provider_errors[0][1] if provider_errors else last_error
     primary_provider = provider_errors[0][0] if provider_errors else "unknown"
 

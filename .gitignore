@@ -47,6 +47,7 @@ FUTURE_SELF_REVIEW_PLAN.md
 legacy_capabilities_backup/
 
 stress_test_agent.md
+handoff.md
 
 # LLM Views
 llm_view_snapshot.json

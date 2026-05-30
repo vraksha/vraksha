@@ -1,3 +1,5 @@
+"""Construct provider model instances after applying local credential config."""
+
 from __future__ import annotations
 
 import logging
@@ -5,12 +7,13 @@ import logging
 from src.providers.config import normalize_provider
 from src.providers.env import set_provider_env
 from src.providers.imports import PROVIDERS_PRIORITY_ORDER
-from src.utils.api_keys import get_api_key
+from src.utils.api_key_utils import get_api_key
 
 logger = logging.getLogger(__name__)
 
 
 def get_model_instance(provider_name: str, model_name: str):
+    """Instantiate a provider model, or return None if setup fails."""
     provider_name = normalize_provider(provider_name)
 
     if provider_name not in ["ollama", "bedrock"]:

@@ -1,7 +1,8 @@
+from src.agent.loop import run_agent
+from src.providers import get_model_priorities
+
 import logging
 import sys
-from src.providers.client import get_model_priorities
-from src.agent.loop import run_agent
 
 # Branded Logging Configuration
 logging.basicConfig(

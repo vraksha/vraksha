@@ -13,7 +13,7 @@ Related references:
 * `guides/capability_system.md`
 * `guides/tools_and_experts.md`
 * `guides/capability_broker.md`
-* `registry/guide.md`
+* `registry/README.md`
 
 ---
 
@@ -58,7 +58,7 @@ boundary.
 
 A module is discovered only if it:
 
-* imports from `registry.register`
+* imports decorators from `registry` or `registry.register`
 * contains `@tool` or `@expert`
 * is not under ignored folders such as `tests/`, `.venv/`, `venv/`, `.git/`,
   caches, assets, or memory
@@ -69,7 +69,7 @@ decorated class must exist at module import time.
 Good:
 
 ```python
-from registry.register import tool
+from registry import tool
 
 @tool(enabled=True, domain="filesystem", tags=["read"])
 class ReadFile:
@@ -98,8 +98,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from registry.register import tool
-from tools.schemas.output import STANDARD_OUTPUT_SCHEMA
+from registry import tool
 
 
 @tool(enabled=True, domain="filesystem", tags=["read"])
@@ -116,8 +115,6 @@ class ReadSomethingTool:
         },
         "required": ["path"],
     }
-    output_schema = STANDARD_OUTPUT_SCHEMA
-
     def call(self, tool_input: dict) -> Dict[str, Any]:
         path = str(tool_input.get("path", "")).strip()
         if not path:
@@ -135,7 +132,7 @@ Tool requirements:
 * `name`: stable semantic name
 * `description`: clear instruction for when to use the tool
 * `input_schema`: JSON-schema dictionary
-* `output_schema`: JSON-schema dictionary
+* `output_schema`: optional for basic tools; required for primitive tools
 * `call(self, tool_input: dict)`: returns a dictionary
 
 The LLM sees the registry key converted to a safe name:
@@ -158,8 +155,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from registry.register import expert
-from tools.schemas.output import STANDARD_OUTPUT_SCHEMA
+from registry import expert
 
 
 @expert(enabled=True, domain="review", tags=["code", "analysis"])
@@ -176,7 +172,6 @@ class CodeReviewExpert:
         },
         "required": ["scope"],
     }
-    output_schema = STANDARD_OUTPUT_SCHEMA
     instruction_files = ["experts/code_review/SKILL.md"]
 
     def call(self, tool_input: dict) -> Dict[str, Any]:

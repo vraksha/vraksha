@@ -2,7 +2,7 @@
 factory/build/system_prompt.py
 ──────────────────────────────
 Single source of truth for every prompt block Vraksha injects.
-bootstrap.py and engine.py pull from here — never define strings elsewhere.
+Agent bootstrap and governance pull from here — never define strings elsewhere.
 """
 
 DEFAULT_SOUL = """\

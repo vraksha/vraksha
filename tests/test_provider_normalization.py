@@ -1,4 +1,8 @@
-from src.utils.api_keys import ApiKeyStore, PROVIDER_KEY_SCHEMA, normalize_provider_name
+from src.utils.api_key_utils import (
+    ApiKeyStore,
+    PROVIDER_KEY_SCHEMA,
+    normalize_provider_name,
+)
 
 
 def test_provider_names_normalize_to_canonical_keys():

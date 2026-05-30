@@ -1,8 +1,10 @@
+"""Environment-variable helpers for provider runtime configuration."""
+
 from __future__ import annotations
 
 import os
 
-from src.utils.api_keys import get_api_key
+from src.utils.api_key_utils import get_api_key
 
 PYDANTIC_AI_ENV_MAPPING = {
     "openai": ("OPENAI_API_KEY",),
@@ -20,11 +22,13 @@ PYDANTIC_AI_ENV_MAPPING = {
 
 
 def set_provider_env(provider_name: str, value: str) -> None:
+    """Expose a resolved provider credential under the env var expected by SDKs."""
     for target_env in PYDANTIC_AI_ENV_MAPPING.get(provider_name, ()):
         os.environ[target_env] = value.strip()
 
 
 def provider_has_runtime_config(provider_name: str) -> bool:
+    """Return whether a provider has enough local configuration to be attempted."""
     if provider_name == "bedrock":
         return bool(
             get_api_key("bedrock")

@@ -1,12 +1,14 @@
-# Memory Primitive
+# Memory
 
-Purpose: store and retrieve durable project/session memory through controlled
-broker requests.
+Memory is part of the agent orchestrator's cognition, not an external primitive
+tool.
 
-Planned capability names:
+The agent-owned gateway lives at:
 
-* `memory_search`
-* `memory_remember`
+* `src.agent.memory.AgentMemory`
 
-Trust, expiry, visibility, and write policy should be enforced before this
-primitive executes.
+Use that gateway for essential context and local memory search.
+
+Memory writes are intentionally not exposed as a live capability yet. Add memory
+write paths only after policy can adjudicate trust, authority, session
+ownership, and poisoning risk.

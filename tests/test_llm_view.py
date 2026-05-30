@@ -7,7 +7,7 @@ from pydantic_ai.models.test import TestModel
 from pydantic_core import to_jsonable_python
 
 from src.agent.bootstrap import bootstrap_vraksha
-from src.agent.engine import vraksha_agent
+from src.agent.runtime import vraksha_agent
 
 
 @pytest.mark.anyio

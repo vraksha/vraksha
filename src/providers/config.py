@@ -1,3 +1,5 @@
+"""Load and normalize provider model configuration."""
+
 from __future__ import annotations
 
 import logging
@@ -6,7 +8,7 @@ import yaml
 
 from get_root import root
 from src.providers.defaults import DEFAULT_MODELS
-from src.utils.api_keys import normalize_provider_name
+from src.utils.api_key_utils import normalize_provider_name
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +16,12 @@ CONFIG_PATH = root.project / "models.yaml"
 
 
 def normalize_provider(provider_name: str) -> str:
+    """Normalize provider aliases to the canonical provider key."""
     return normalize_provider_name(provider_name)
 
 
 def normalize_model_config(config: dict) -> dict:
+    """Return model config with provider aliases collapsed to canonical names."""
     normalized = {}
 
     for provider_name, provider_config in config.items():
@@ -37,6 +41,7 @@ def normalize_model_config(config: dict) -> dict:
 
 
 def load_model_config() -> dict:
+    """Load `models.yaml`, falling back to bundled defaults when needed."""
     if not CONFIG_PATH.exists():
         return normalize_model_config(DEFAULT_MODELS)
 
