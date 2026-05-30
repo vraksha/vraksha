@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from pydantic_ai import capture_run_messages
 from pydantic_ai.models.test import TestModel
 from pydantic_core import to_jsonable_python
@@ -9,11 +10,12 @@ from src.agent.bootstrap import bootstrap_vraksha
 from src.agent.engine import vraksha_agent
 
 
-def test_dump_what_llm_sees():
+@pytest.mark.anyio
+async def test_dump_what_llm_sees():
     model = TestModel(call_tools=[], custom_output_text="ok")
 
     with capture_run_messages() as messages:
-        result = vraksha_agent.run_sync(
+        result = await vraksha_agent.run(
             "What files should you inspect first?",
             deps=bootstrap_vraksha(),
             model=model,

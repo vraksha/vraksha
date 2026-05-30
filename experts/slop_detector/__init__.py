@@ -1,3 +1,0 @@
-#=======================================================================================
-# NOTE: This directory is kept here just to not lose the code for the slop detector, which is currently being refactored and moved to a different location. The code in this directory is not currently being used, and may be deleted in the future.
-#=======================================================================================

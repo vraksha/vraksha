@@ -19,6 +19,7 @@ EXCLUDED_DIRS = {
     ".venv",
     "__pycache__",
     "assets",
+    "legacy_capabilities_backup",
     "memory",
     "tests",
     "venv",
@@ -76,7 +77,23 @@ def should_skip_path(project_root: Path, path: Path) -> bool:
     relative = path.relative_to(project_root)
     if path.name in EXCLUDED_FILES:
         return True
-    return any(part in EXCLUDED_DIRS for part in relative.parts)
+    if any(part in EXCLUDED_DIRS for part in relative.parts):
+        return True
+    return not looks_like_registry_module(path)
+
+
+def looks_like_registry_module(path: Path) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return False
+
+    imports_registry_decorator = (
+        "from registry.register import" in text
+        or "import registry.register" in text
+    )
+    uses_registry_decorator = "@tool" in text or "@expert" in text
+    return imports_registry_decorator and uses_registry_decorator
 
 
 def module_name_from_path(project_root: Path, path: Path) -> str | None:

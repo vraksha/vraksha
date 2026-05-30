@@ -42,6 +42,11 @@ progress/
 #Examples
 examples/
 
+#Backups
+legacy_capabilities_backup/
+
+stress_test_agent.md
+
 # LLM Views
 llm_view_snapshot.json
 
