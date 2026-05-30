@@ -2,36 +2,45 @@
 
 set -e
 
-REPO="https://github.com/vraksha/vraksha"
-INSTALL_DIR="$HOME/.vraksha"
-INSTALL_PATH="/usr/local/bin/vraksha"
+BASE_URL="https://raw.githubusercontent.com/vraksha/vraksha/main"
+SCRIPT_DIR="$(cd -P "$(dirname "$0")" >/dev/null 2>&1 && pwd)"
+OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
 
-echo "Installing Vraksha..."
+select_installer() {
+    case "$OS_NAME" in
+        Darwin)
+            printf "install-macos.sh\n"
+            return 0
+            ;;
+        Linux)
+            if grep -qiE "microsoft|wsl" /proc/version 2>/dev/null; then
+                printf "install-wsl.sh\n"
+            else
+                printf "install-linux.sh\n"
+            fi
+            return 0
+            ;;
+    esac
 
-# Clone or update repo
-if [ -d "$INSTALL_DIR" ]; then
-    echo "Updating existing installation..."
-    git -C "$INSTALL_DIR" pull
-else
-    echo "Cloning Vraksha..."
-    git clone "$REPO" "$INSTALL_DIR"
-fi
+    echo "Unsupported platform. Use Linux, WSL, or macOS." >&2
+    exit 1
+}
 
-# Create symlink
-sudo ln -sf "$INSTALL_DIR/vraksha.sh" "$INSTALL_PATH"
-sudo chmod +x "$INSTALL_PATH"
+run_installer() {
+    installer="$1"
 
-# Setup env file if not exists
-if [ ! -f "$INSTALL_DIR/.env.local" ]; then
-    cp "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env.local"
-    echo ""
-    echo "⚠️  Add your API keys to $INSTALL_DIR/.env.local"
-    echo "    nano $INSTALL_DIR/.env.local"
-fi
+    if [ -f "$SCRIPT_DIR/$installer" ]; then
+        exec bash "$SCRIPT_DIR/$installer"
+    fi
 
-echo "Building Vraksha Docker image (this may take a minute)..."
-docker build -t vraksha-runtime "$INSTALL_DIR"
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "Missing required command: curl" >&2
+        exit 1
+    fi
 
+    curl -fsSL "$BASE_URL/$installer" | bash
+}
 
-echo ""
-echo "Vraksha installed! Run 'vraksha' from anywhere."
+INSTALLER="$(select_installer)"
+echo "install.sh is a compatibility wrapper. Running $INSTALLER..."
+run_installer "$INSTALLER"

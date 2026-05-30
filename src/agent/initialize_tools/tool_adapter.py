@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Annotated, Any, Dict
+from typing import Annotated, Any, Dict, Literal
 
 from pydantic import Field
 from pydantic_ai.agent import Agent
@@ -61,6 +61,7 @@ class ToolAdapter:
         required = schema.get("required", [])
 
         parameters = []
+        annotations: dict[str, Any] = {}
         for prop_name, prop_info in properties.items():
             t_str = prop_info.get("type", "any")
             if t_str == "string":
@@ -79,10 +80,15 @@ class ToolAdapter:
                 p_type = Any
             
             description = prop_info.get("description", "")
+            enum_values = prop_info.get("enum")
+            if isinstance(enum_values, list) and enum_values:
+                p_type = Literal.__getitem__(tuple(enum_values))
+
             if description:
                 annotated_type = Annotated[p_type, Field(description=description)]
             else:
                 annotated_type = p_type
+            annotations[prop_name] = annotated_type
 
             if prop_name in required:
                 default_val = inspect.Parameter.empty
@@ -115,9 +121,9 @@ class ToolAdapter:
 
         # Apply signature and metadata to the wrapper function
         wrapped_tool.__signature__ = sig
+        wrapped_tool.__annotations__ = {**annotations, "return": Dict[str, Any]}
         wrapped_tool.__doc__ = getattr(tool_cls, "description", "")
         wrapped_tool.__name__ = safe_name
 
         # Register it with the agent
         self.agent.tool_plain(name=safe_name)(wrapped_tool)
-

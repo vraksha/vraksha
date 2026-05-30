@@ -14,7 +14,7 @@ Users are NOT required to inherit from any base class.
 # Quick Start
 
 ```python
-from src.registry.registry import tool, expert
+from registry.register import tool, expert
 ```
 
 ---
@@ -31,20 +31,30 @@ class SearchTool:
     name = "search_tool"
     description = "Searches the web"
 
-    input_schema = [
-        {
-            "query": "str"
-        }
-    ]
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Search query.",
+            }
+        },
+        "required": ["query"],
+    }
 
-    output_schema = [
-        {
-            "result": "str"
-        }
-    ]
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "success": {"type": "boolean"},
+            "data": {"type": ["object", "null"]},
+            "error": {"type": ["string", "null"]},
+        },
+        "required": ["success"],
+    }
 
-    def call(self, query: str):
-        return "..."
+    def call(self, tool_input: dict):
+        query = tool_input["query"]
+        return {"success": True, "data": {"query": query}, "error": None}
 ```
 
 ---
@@ -60,24 +70,34 @@ class FinanceExpert:
     name = "finance_expert"
     description = "Handles finance-related reasoning"
 
-    input_schema = [
-        {
-            "question": "str"
-        }
-    ]
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "question": {
+                "type": "string",
+                "description": "Finance question to analyze.",
+            }
+        },
+        "required": ["question"],
+    }
 
-    output_schema = [
-        {
-            "answer": "str"
-        }
-    ]
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "success": {"type": "boolean"},
+            "data": {"type": ["object", "null"]},
+            "error": {"type": ["string", "null"]},
+        },
+        "required": ["success"],
+    }
 
     instruction_files = [
         "finance.md"
     ]
 
-    def call(self, question: str):
-        return "..."
+    def call(self, tool_input: dict):
+        question = tool_input["question"]
+        return {"success": True, "data": {"answer": question}, "error": None}
 ```
 
 ---
@@ -177,6 +197,9 @@ expert.finance.risk_analyzer
 
 All registered objects are validated automatically during registration.
 
+Discovery imports only Python modules that import `registry.register` and use
+`@tool` or `@expert`, so decorators must live at module import time.
+
 ---
 
 # Required Fields (Tools + Experts)
@@ -189,6 +212,15 @@ description
 input_schema
 output_schema
 call()
+```
+
+`input_schema` and `output_schema` must be JSON-schema dictionaries.
+
+`call()` receives one dictionary containing the validated tool arguments and
+should return a dictionary, usually:
+
+```python
+{"success": True, "data": {...}, "error": None}
 ```
 
 ---
@@ -428,4 +460,3 @@ Experts may:
 * call other experts
 * manage context
 * perform decomposition
-

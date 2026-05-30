@@ -13,7 +13,6 @@ Architecture:
 """
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import logging
@@ -163,8 +162,8 @@ class LocalFirstMemory:
         self._lock = threading.RLock()
         self._hot_cache: list[MemoryRecord] = [] # Temporary RAM storage for current session
         
-        # check_same_thread=False is required for sharing a connection 
-        # between the main loop and background asyncio.to_thread workers.
+        # check_same_thread=False keeps the connection usable from callers that
+        # still wrap memory operations in their own worker threads.
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._configure()
@@ -262,7 +261,7 @@ class LocalFirstMemory:
             (self.memory_root / "soul.md", "core", 0.99, True),
             (self.memory_root / "rules.md", "core", 0.99, True),
             (self.memory_root / "wiki" / "rules.md", "wiki", 0.90, True),
-            (self.memory_root / "agent" / "journal.jsonl", "episode", 0.45, False),
+            (self.memory_root / "agent" / "journal.jsonl", "episode", 0.20, False),
         ]
 
     async def bootstrap(self) -> None:
@@ -279,7 +278,7 @@ class LocalFirstMemory:
 
     async def index_file(self, path: Path, *, kind: str, trust: float, pinned: bool = False) -> None:
         """Asynchronously indexes a file on disk."""
-        await asyncio.to_thread(self._index_file_sync, Path(path), kind, trust, pinned)
+        self._index_file_sync(Path(path), kind, trust, pinned)
 
     def _index_file_sync(self, path: Path, kind: str, trust: float, pinned: bool) -> None:
         """Checks mtime/size to see if the file has changed.
@@ -328,7 +327,11 @@ class LocalFirstMemory:
 
     async def remember_many(self, records: list[MemoryRecord]) -> None:
         """Asynchronously persists multiple memory records."""
-        await asyncio.to_thread(self.remember_many_sync, records)
+        self.remember_many_sync(records)
+
+    async def remember(self, record: MemoryRecord) -> None:
+        """Persist a single memory record."""
+        self.remember_many_sync([record])
 
     def remember_many_sync(self, records: list[MemoryRecord]) -> None:
         """Commit a batch of memories to all three storage paths.
@@ -423,7 +426,7 @@ class LocalFirstMemory:
         )
 
     async def search(self, query: str, *, limit: int = MAX_RESULTS, min_trust: float = 0.35, kinds: Sequence[str] | None = None) -> list[dict[str, Any]]:
-        return await asyncio.to_thread(self.search_sync, query, limit=limit, min_trust=min_trust, kinds=kinds)
+        return self.search_sync(query, limit=limit, min_trust=min_trust, kinds=kinds)
 
     def search_sync(self, query: str, *, limit: int = MAX_RESULTS, min_trust: float = 0.35, kinds: Sequence[str] | None = None) -> list[dict[str, Any]]:
         """Perform a keyword search using BM25 ranking and result diversification.
@@ -523,7 +526,7 @@ class LocalFirstMemory:
         }
 
     async def essential_context(self, user_query: str = "") -> str:
-        return await asyncio.to_thread(self.essential_context_sync, user_query)
+        return self.essential_context_sync(user_query)
 
     def essential_context_sync(self, user_query: str = "") -> str:
         """Assemble the foundational context required for every agent interaction.

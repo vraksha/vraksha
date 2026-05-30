@@ -15,7 +15,8 @@ from typing import Any, Dict, List
 
 from get_root import root
 from src.memory.base import BaseMemoryLayer
-from src.memory.local_index import MemoryRecord, bounded_read_text, get_memory, atomic_append
+from src.memory.local_index import MemoryRecord, bounded_read_text, get_memory
+from src.memory.utils.async_journal_writer import atomic_append
 
 ROOT = root.project
 MEMORY_ROOT = ROOT / "memory"
