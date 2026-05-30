@@ -109,16 +109,16 @@ The orchestrator observes every request before anything is allowed.
 
 Expert communication is split into focused files:
 
-* `expert_messages.py`
+* `utils/expert_messages.py`
   Defines `ExpertMessageRequest`.
 
-* `orchestration_decision.py`
+* `utils/orchestration_decision.py`
   Defines `OrchestratorDecision` and the `allow` / `block` decision shape.
 
 * `orchestration_policy.py`
   Defines `ExpertMessagePolicy`, the fail-closed policy layer.
 
-* `orchestration_log.py`
+* `utils/orchestration_log.py`
   Defines `ObservedExpertMessage`, the audit record pairing request and decision.
 
 * `guardrails.py`

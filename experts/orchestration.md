@@ -17,7 +17,7 @@ allowed before a message is approved.
 
 Implementation lives in `src.agent`:
 
-* `expert_messages.py` defines message requests.
+* `utils/expert_messages.py` defines message requests.
 * `orchestration_policy.py` decides allow/block.
-* `orchestration_log.py` records observed messages.
+* `utils/orchestration_log.py` records observed messages.
 * `orchestrator.py` coordinates review and observation.

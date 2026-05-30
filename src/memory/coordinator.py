@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 from typing import Any, Dict, Sequence
 
+from src.memory.background import run_background_consolidation
 from src.memory.local_index import LocalFirstMemory, MemoryRecord, get_memory
+
 
 class MemoryCoordinator:
     """A unified gateway to orchestrate retrieval across Vraksha's Tri-Store backends.
@@ -38,25 +39,7 @@ class MemoryCoordinator:
         await self.memory.remember_many(records)
 
     def run_background_consolidation(self, messages: list[dict[str, Any]]) -> None:
-        """The 'Cognitive Sleep Cycle' for distilling chat history into durable memory.
-    
-        Raw conversation transcripts are extremely high-entropy environments full 
-        of social filler, greetings, and ephemeral debug noise. Feeding these 
-        transcripts back into the agent directly results in token bloat and a 
-        significant drop in reasoning quality.
-        
-        Consolidation is the process of 'Garbage Collection' for the brain. It 
-        uses a specialized sub-agent to analyze the transcript, extract high-signal 
-        facts, rules, and preferences, and commit them to their respective 
-        Tri-Store layers. This ensures that the agent's long-term memory 
-        remains dense, accurate, and relevant.
-        """
-        from src.memory.consolidation import consolidate_session
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(consolidate_session(messages))
-        except RuntimeError:
-            asyncio.run(consolidate_session(messages))
+        run_background_consolidation(messages)
 
 
 memory_coordinator = MemoryCoordinator()

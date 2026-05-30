@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from src.agent.expert_messages import ExpertMessageRequest
-from src.agent.orchestration_decision import OrchestratorDecision
+from src.agent.utils import ExpertMessageRequest, OrchestratorDecision
 
 
 class ExpertMessagePolicy:

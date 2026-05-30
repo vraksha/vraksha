@@ -1,6 +1,6 @@
-from src.agent.expert_messages import ExpertMessageRequest
 from src.agent.orchestration_policy import ExpertMessagePolicy
 from src.agent.orchestrator import Orchestrator
+from src.agent.utils import ExpertMessageRequest
 from src.capabilities import Actor
 
 
