@@ -1,29 +1,19 @@
-from src.memory.wiki import load_wiki, write_wiki
-
-continue_commands = ["y"]
-
-print("\n==================================")
-decision = input("Wanna read and then write?\n")
-print("==================================\n\n")
+from src.memory import wiki
 
 
-while decision.lower() in continue_commands:
-    print("\n==================================")
-    wiki_content = load_wiki(filename="WIKI")
-    print(f"{wiki_content}\n")
-    print("==================================\n\n")
-    
-    print("\n==================================")
-    content = input("\nWhat do you wanna write to wiki?\n")
-    write_wiki(content, "WIKI")
+def test_load_wiki_returns_core_memory_context(tmp_path, monkeypatch):
+    memory_root = tmp_path / "memory"
+    wiki_path = memory_root / "wiki"
+    wiki_path.mkdir(parents=True)
+    (memory_root / "soul.md").write_text("local-first identity", encoding="utf-8")
+    (memory_root / "rules.md").write_text("keep tests deterministic", encoding="utf-8")
+    (wiki_path / "rules.md").write_text("wiki rule", encoding="utf-8")
 
-    print("\n==================================")
-    print("Successfully wrote to wiki!\n" + f"\n{content}")
-    print("==================================\n\n")
+    monkeypatch.setattr(wiki, "MEMORY_ROOT", memory_root)
+    monkeypatch.setattr(wiki, "WIKI_PATH", wiki_path)
 
-    print("\n==================================")
-    decision = input("Wanna read and then write again?\n")
-    print("==================================\n\n")
+    content = wiki.load_wiki()
 
-    if decision not in continue_commands:
-        print("\nBye then!\n")
+    assert "local-first identity" in content
+    assert "keep tests deterministic" in content
+    assert "wiki rule" in content

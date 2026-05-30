@@ -6,6 +6,7 @@ venv/
 .venv/
 .env*
 .DS_Store
+.pytest_cache/
 
 # Logs
 *.log
@@ -40,6 +41,9 @@ progress/
 
 #Examples
 examples/
+
+# LLM Views
+llm_view_snapshot.json
 
 # Agents
 .codex/

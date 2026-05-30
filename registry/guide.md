@@ -14,7 +14,7 @@ Users are NOT required to inherit from any base class.
 # Quick Start
 
 ```python
-from src.registry.registry import tool, expert
+from registry.register import tool, expert
 ```
 
 ---
@@ -428,4 +428,3 @@ Experts may:
 * call other experts
 * manage context
 * perform decomposition
-

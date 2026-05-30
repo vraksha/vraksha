@@ -19,21 +19,10 @@ _PRUNE = {
 class GetTree():
     name="get_tree_structure"
     description=(
-        "Return a textual tree of `root_path` up to `max_depth` levels deep."
-        "Directory tree rendering for the read_file tool."
-
-        "When `read_file` is given a directory, it returns this tree representation"
-        "instead of file content."
-
-        "Output mirrors `tree(1)`:"
-        """
-            root_dir/
-            ├── file_a.py
-            ├── sub/
-            │   ├── file_b.py
-            │   └── file_c.py
-            └── file_d.md
-        """
+        "Return a compact directory tree for a project path. "
+        "Use this when you need an overview of folders/files before choosing "
+        "which files to inspect. Use read_file when you need actual file content. "
+        "Output mirrors tree(1)."
     )
     input_schema = {
             "type": "object",
@@ -135,4 +124,3 @@ class GetTree():
             if entry.is_dir():
                 extension = "    " if last else "│   "
                 self._walk(entry, prefix + extension, out, max_depth, depth + 1)
-
