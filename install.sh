@@ -28,9 +28,10 @@ select_installer() {
 
 run_installer() {
     installer="$1"
+    shift
 
     if [ -f "$SCRIPT_DIR/$installer" ]; then
-        exec bash "$SCRIPT_DIR/$installer"
+        exec bash "$SCRIPT_DIR/$installer" "$@"
     fi
 
     if ! command -v curl >/dev/null 2>&1; then
@@ -38,9 +39,9 @@ run_installer() {
         exit 1
     fi
 
-    curl -fsSL "$BASE_URL/$installer" | bash
+    curl -fsSL "$BASE_URL/$installer" | bash -s -- "$@"
 }
 
 INSTALLER="$(select_installer)"
 echo "install.sh is a compatibility wrapper. Running $INSTALLER..."
-run_installer "$INSTALLER"
+run_installer "$INSTALLER" "$@"
