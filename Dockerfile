@@ -23,8 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
 COPY get_root.py .
-COPY memory/ ./memory/
-COPY workspace/ ./workspace/
+RUN mkdir -p /vraksha/memory /vraksha/workspace
 COPY main.py .
 COPY vraksha.sh . 
 COPY models.yaml .
