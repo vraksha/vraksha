@@ -52,6 +52,7 @@ CURRENT_PHASE="resolving"
 FORCE_BUILD=false
 CLEAN=false
 PURGE=false
+export COMPOSE_PROJECT_NAME="vraksha"
 
 OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
 IS_MAC=false
@@ -273,6 +274,41 @@ ensure_env_file() {
     exit 1
 }
 
+# --- SECURITY DEPS (added by security layer setup) ---
+ensure_security_runtime_deps() {
+    local missing=0
+    local binary
+    local vendor_file
+
+    for binary in ffmpeg exiftool clamscan; do
+        if ! command -v "$binary" >/dev/null 2>&1; then
+            printf "  ${R}✗${NC}  ${B}missing:${NC} ${T}%s${NC}\n" "$binary"
+            missing=1
+        fi
+    done
+
+    for vendor_file in \
+        "security/vendors/pdfid/pdfid.py" \
+        "security/vendors/pdfid/pdf-parser.py"
+    do
+        if [ ! -f "$vendor_file" ]; then
+            printf "  ${R}✗${NC}  ${B}missing:${NC} ${T}%s${NC}\n" "$vendor_file"
+            missing=1
+        fi
+    done
+
+    if [ "$missing" -ne 0 ]; then
+        printf "  ${Y}!${NC}  ${T}Re-run the installer to install missing security dependencies.${NC}\n"
+        exit 1
+    fi
+}
+
+prune_vraksha_docker_clutter() {
+    docker compose rm -sf vraksha >/dev/null
+    docker container prune -f --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}" >/dev/null
+    docker image prune -f >/dev/null
+}
+
 # == 1. workspace check ==================================================
 cd "$SCRIPT_DIR"
 
@@ -295,9 +331,8 @@ fi
 
 # == 1.5 System Audit & Redundancy Check ==
 if [ "$CLEAN" = true ] || [ "$PURGE" = true ]; then
-    printf "  ${A}${GL_DIAMOND}${NC}  ${B}${T}system cleanup${NC}  ${D}${GL_DOT}${NC}  ${M}purging redundancy${NC}\n"
-    docker container prune -f &>/dev/null
-    docker image prune -f &>/dev/null
+    printf "  ${A}${GL_DIAMOND}${NC}  ${B}${T}docker cleanup${NC}  ${D}${GL_DOT}${NC}  ${M}removing stale Vraksha containers and images${NC}\n"
+    prune_vraksha_docker_clutter
     if [ "$PURGE" = true ]; then
         docker compose down --rmi all --volumes --remove-orphans &>/dev/null
         printf "  ${G}${GL_CHECK}${NC}  ${T}full environment purge complete${NC}\n\n"
@@ -306,35 +341,22 @@ if [ "$CLEAN" = true ] || [ "$PURGE" = true ]; then
     printf "  ${G}${GL_CHECK}${NC}  ${T}cleanup complete${NC}\n\n"
 fi
 
+ensure_security_runtime_deps
 ensure_env_file
 
 # -------------------------------------------------
-# 5️⃣  Ensure the Vraksha container is running
+# 5. Prevent stale background Vraksha containers
 # -------------------------------------------------
-# Docker is now guaranteed to be active, so we can safely
-# query the compose project.
-COMPOSE_PROJECT_NAME="vraksha"
-
-
-
-# See if a container from this compose project is already up
-if docker ps --filter "name=${COMPOSE_PROJECT_NAME}" --format "{{.Names}}" | grep -q .; then
-    if [ "$FORCE_BUILD" = true ]; then
-        printf "  ${A}${GL_DIAMOND}${NC}  ${M}stopping existing containers for rebuild…${NC}\n"
-        docker compose down &>/dev/null
-    else
-        printf "  ${G}${GL_CHECK}${NC}  ${M}Vraksha container already running${NC}\n"
-    fi
-fi
-
-# Start container logic
-if ! docker ps --filter "name=${COMPOSE_PROJECT_NAME}" --format "{{.Names}}" | grep -q .; then
-    printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting Vraksha container…${NC}\n"
-    if [ "$FORCE_BUILD" = true ]; then
-        docker compose up -d --build
-    else
-        docker compose up -d
-    fi
+# The CLI runs vraksha in the foreground with --rm below; only support
+# services should stay up between runs.
+if docker ps \
+    --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}" \
+    --filter "label=com.docker.compose.service=vraksha" \
+    --format "{{.Names}}" | grep -q .
+then
+    printf "  ${A}${GL_DIAMOND}${NC}  ${M}stopping stale background Vraksha container...${NC}\n"
+    docker compose stop vraksha &>/dev/null
+    docker compose rm -f vraksha &>/dev/null
 fi
 
 # System Link Validation
@@ -404,9 +426,12 @@ if [ "$REBUILD_NEEDED" = true ]; then
     rm -f "$BUILD_LOG"
     
     # Auto-clean old image versions to prevent disk bloat (Freshness Enforcement)
-    docker image prune -f &>/dev/null
+    prune_vraksha_docker_clutter &>/dev/null
     printf "\n  ${G}${GL_CHECK}${NC}  ${B}${T}vraksha soul initialized${NC}  ${M}(old layers cleaned)${NC}\n"
 fi
+
+printf "  ${A}${GL_DIAMOND}${NC}  ${M}starting Vraksha support services...${NC}\n"
+docker compose up -d --remove-orphans qdrant >/dev/null
 
 # subtle handoff line into the python TUI
 printf "  ${A}${GL_ARROW}${NC}  ${M}launching agent interface${NC}\n"

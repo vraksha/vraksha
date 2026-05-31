@@ -13,12 +13,7 @@ venv/
 *.log
 vraksha.log
 
-# Memory (Ignore subfolder contents, track specific root files and .gitkeep)
-# memory/**/*
-# !memory/**/.gitkeep
-# memory/rules.md
-# memory/soul.md
-# !memory/IMMUTABLE.yaml
+security/
 
 /memory/
 
@@ -48,6 +43,7 @@ legacy_capabilities_backup/
 
 stress_test_agent.md
 handoff.md
+src_sample_tree_structure.md
 
 # LLM Views
 llm_view_snapshot.json
