@@ -60,14 +60,55 @@ _PROVIDER_KEY_ENVS: dict[str, tuple[str, ...]] = {
 }
 
 
+def _google_api_keys() -> list[str]:
+    """
+    Every configured Google key, in priority order: GOOGLE_API_KEY (or
+    GEMINI_API_KEY), then GOOGLE_API_KEY_2, _3, ... (contiguous numbering —
+    a gap stops the scan). Keys from separate accounts carry separate free-tier
+    quotas, so each becomes its own fallback entry: quota exhaustion on one
+    account rotates to the next instead of failing the run.
+    """
+    import os
+
+    keys: list[str] = []
+    primary = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if primary:
+        keys.append(primary)
+    n = 2
+    while key := os.getenv(f"GOOGLE_API_KEY_{n}"):
+        keys.append(key)
+        n += 1
+    return keys
+
+
 def _provider_available(model_string: str) -> bool:
     import os
 
     provider = model_string.split(":", 1)[0]
+    if provider == "google":
+        return bool(_google_api_keys())
     env_names = _PROVIDER_KEY_ENVS.get(provider)
     if env_names is None:
         return True  # unknown provider — let pydantic-ai decide
     return any(os.getenv(name) for name in env_names)
+
+
+def _expand_keys(model_string: str) -> list[Any]:
+    """
+    One runnable entry per Google API key for google models (explicit
+    per-key providers); everything else passes through as the plain
+    provider-qualified string.
+    """
+    provider, _, name = model_string.partition(":")
+    if provider != "google":
+        return [model_string]
+    keys = _google_api_keys()
+    if len(keys) <= 1:
+        return [model_string]
+    from pydantic_ai.models.google import GoogleModel
+    from pydantic_ai.providers.google import GoogleProvider
+
+    return [GoogleModel(name, provider=GoogleProvider(api_key=key)) for key in keys]
 
 
 def fallback_chain_for_layer(layer: str) -> list[str]:
@@ -81,6 +122,14 @@ def fallback_chain_for_layer(layer: str) -> list[str]:
     return [str(model) for model in chain if _provider_available(str(model))]
 
 
+# Resolved models, keyed by everything that can change a resolution: the layer,
+# the per-run override, and which provider keys exist. pydantic-ai model objects
+# are stateless and reusable; rebuilding them per agent build churns a fresh
+# provider (and HTTP client/connection pool) on every call.
+_RESOLVED_CACHE_MAX = 64
+_resolved_models: dict[tuple, "str | FallbackModel"] = {}
+
+
 def model_for_layer(layer: str) -> str | FallbackModel:
     """
     Resolve the runnable model for a layer: the primary (override or
@@ -89,11 +138,34 @@ def model_for_layer(layer: str) -> str | FallbackModel:
     model in the chain, so one provider/model outage or quota never
     takes a run down with it.
     """
+    import os
+
+    cache_key = (
+        layer,
+        _MODEL_OVERRIDES.get().get(layer),
+        tuple(_google_api_keys()),
+        bool(os.getenv("ANTHROPIC_API_KEY")),
+        bool(os.getenv("OPENAI_API_KEY")),
+    )
+    cached = _resolved_models.get(cache_key)
+    if cached is not None:
+        return cached
+
     primary = model_name_for_layer(layer)
     chain = [model for model in fallback_chain_for_layer(layer) if model != primary]
-    if not chain:
-        return primary
-    return FallbackModel(primary, *chain)
+    if not _provider_available(primary) and chain:
+        # the configured primary has no API key in this environment — promote the
+        # first keyed chain entry instead of failing at FallbackModel build time
+        primary, chain = chain[0], chain[1:]
+    entries = _expand_keys(primary)
+    for model in chain:
+        entries.extend(_expand_keys(model))
+    resolved = entries[0] if len(entries) == 1 else FallbackModel(*entries)
+
+    if len(_resolved_models) >= _RESOLVED_CACHE_MAX:   # env churn (tests) — reset, don't grow
+        _resolved_models.clear()
+    _resolved_models[cache_key] = resolved
+    return resolved
 
 
 def model_settings_for_layer(layer: str) -> ModelSettings:

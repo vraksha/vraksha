@@ -9,6 +9,7 @@ what proposals become. Every failure degrades — memory never fails a run.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 
@@ -68,12 +69,21 @@ class MemoryManager:
 
         vectors = await embeddings.embed([query_text[:_MAX_CONTENT_CHARS]])
         if not vectors:
-            return HydrationPackage(token_budget=budget, notes="embeddings unavailable; memory degraded")
+            return HydrationPackage(
+                token_budget=budget, degraded=True,
+                notes="memory temporarily unavailable (embeddings); answering without it",
+            )
 
         tiers = list(request.allowed_tiers or _TIER_TRUST.keys())
+        # store.search is a sync HTTP call — run the tiers concurrently in
+        # threads so hydration never blocks the event loop (4 sequential
+        # round-trips against a remote Qdrant would stall every other turn)
+        tier_hits = await asyncio.gather(
+            *(asyncio.to_thread(store.search, tier, request.user_id, vectors[0], _SEARCH_K)
+              for tier in tiers)
+        )
         per_tier: dict[MemoryStore, list[dict]] = {}
-        for tier in tiers:
-            hits = store.search(tier, request.user_id, vectors[0], limit=_SEARCH_K)
+        for tier, hits in zip(tiers, tier_hits):
             scored = [
                 {**h, "rank_score": h["score"] * _recency(float(h.get("created_at", 0)))}
                 for h in hits
@@ -83,6 +93,13 @@ class MemoryManager:
                 per_tier[tier] = scored
 
         if not per_tier:
+            if store.is_down():
+                # honesty: empty because the store is down, not because the
+                # user has no memory — say so instead of pretending
+                return HydrationPackage(
+                    token_budget=budget, degraded=True,
+                    notes="memory temporarily unavailable; answering without it",
+                )
             return HydrationPackage(token_budget=budget, notes="no prior memory for this user")
 
         # Lagrangian water-filling: floors first, remainder ∝ mean relevance.
@@ -137,14 +154,15 @@ class MemoryManager:
                 return  # embeddings down — drop quietly, breaker logs it
 
             # dedup: refresh a near-identical memory instead of inserting
-            existing = store.search(tier, user_id, vectors[0], limit=1)
+            existing = await asyncio.to_thread(store.search, tier, user_id, vectors[0], 1)
             point_id = None
             confidence = proposal.confidence
             if existing and existing[0]["score"] >= _DEDUP_SIMILARITY:
                 point_id = existing[0]["id"]
                 confidence = max(confidence, float(existing[0].get("confidence", 0)))
 
-            store.upsert(
+            await asyncio.to_thread(
+                store.upsert,
                 tier,
                 user_id=user_id,
                 session_id=session_id,
@@ -164,9 +182,10 @@ class MemoryManager:
         text = f"{title}\n\n{content}".strip()[:_MAX_CONTENT_CHARS]
         vectors = await embeddings.embed([text])
         if vectors:
-            existing = store.search(MemoryStore.WIKI, user_id, vectors[0], limit=1)
+            existing = await asyncio.to_thread(store.search, MemoryStore.WIKI, user_id, vectors[0], 1)
             point_id = existing[0]["id"] if existing and existing[0]["score"] >= _DEDUP_SIMILARITY else None
-            store.upsert(
+            await asyncio.to_thread(
+                store.upsert,
                 MemoryStore.WIKI, user_id=user_id, session_id="wiki", trace_id="",
                 vector=vectors[0], content=text, rationale="user-authored wiki",
                 confidence=1.0, trust=_TIER_TRUST[MemoryStore.WIKI], point_id=point_id,
@@ -174,7 +193,7 @@ class MemoryManager:
 
     async def delete_user(self, user_id: str) -> None:
         """Right-to-erasure: purge every tier for this user."""
-        store.delete_user(user_id)
+        await asyncio.to_thread(store.delete_user, user_id)
 
 
 # Process-level singleton; wiring hands this to the orchestrator's ports.

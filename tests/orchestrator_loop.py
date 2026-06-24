@@ -101,3 +101,72 @@ def test_run_turn_graceful_forced_answer_at_cap():
         model=FunctionModel(fn),
     ))
     assert ans.answer_text == "forced"
+
+
+# --- deliverable_ref: a referenced artifact becomes the response text ---------
+
+class _ReportCaps(_FakeCaps):
+    """Returns an answer that points at a buffered artifact instead of restating it."""
+
+    def __init__(self, ctx, ref):
+        super().__init__(ctx)
+        self.ref = ref
+
+    async def run_turn(self, *, system_prompt, user_prompt, output_type, on_event=None, **kw):
+        self.ctx.expert_findings.append(
+            ExpertFindings(expert="synthesis.writer", ref="w1", full_content="THE FULL REPORT")
+        )
+        return OrchestratorAnswer(answer_text="lean summary", confidence=0.9, deliverable_ref=self.ref)
+
+
+def test_run_loop_delivers_referenced_artifact():
+    ctx = VrakshaContext.new("s")
+    ports = Ports(memory=MemoryManager(), caps=_ReportCaps(ctx, "w1"), log=CtxDecisionLog(ctx))
+    resp = asyncio.run(loop_mod.run_loop(_norm(), ports, ctx))
+
+    # the full artifact ships without transiting the model's answer...
+    assert resp.text == "THE FULL REPORT"
+    # ...while the decision log carries the lean summary
+    answers = [e.message for e in ctx.decision_log if e.kind == "answer"]
+    assert answers == ["lean summary"]
+
+
+def test_run_loop_dangling_deliverable_falls_back():
+    ctx = VrakshaContext.new("s")
+    ports = Ports(memory=MemoryManager(), caps=_ReportCaps(ctx, "nope"), log=CtxDecisionLog(ctx))
+    resp = asyncio.run(loop_mod.run_loop(_norm(), ports, ctx))
+    assert resp.text == "lean summary"
+
+
+# --- memory degradation: the turn continues, the user is told the truth ------
+
+def test_memory_fault_degrades_with_honest_warning():
+    class ExplodingMemory:
+        async def hydrate(self, request):
+            raise RuntimeError("qdrant down")
+        async def record_write_proposals(self, *a):
+            pass
+
+    ctx = VrakshaContext.new("s")
+    ports = Ports(memory=ExplodingMemory(), caps=_FakeCaps(ctx), log=CtxDecisionLog(ctx))
+    resp = asyncio.run(loop_mod.run_loop(_norm(), ports, ctx))
+
+    assert resp.text == "done"   # the answer still happened
+    warnings = [e.message for e in ctx.decision_log if e.kind == "warning"]
+    assert any("memory temporarily unavailable" in w for w in warnings)
+
+
+def test_degraded_package_surfaces_as_warning_not_hydration():
+    from foundation import HydrationPackage
+
+    class DegradedMemory:
+        async def hydrate(self, request):
+            return HydrationPackage(degraded=True, notes="memory temporarily unavailable; answering without it")
+        async def record_write_proposals(self, *a):
+            pass
+
+    ctx = VrakshaContext.new("s")
+    ports = Ports(memory=DegradedMemory(), caps=_FakeCaps(ctx), log=CtxDecisionLog(ctx))
+    asyncio.run(loop_mod.run_loop(_norm(), ports, ctx))
+    kinds = {e.kind for e in ctx.decision_log if "unavailable" in str(e.message)}
+    assert kinds == {"warning"}
