@@ -4,43 +4,58 @@
   <img src="assets/vraksha.png" alt="Vraksha Logo" style="width: 30%;">
 </p>
 
-A local-first agent runtime. Input gets pushed through a security pipeline
+<!-- A local-first agent runtime. Input gets pushed through a security pipeline
 before any model touches it, an orchestrator drives tools and sub-agents to do
 the actual work, and memory carries context across sessions instead of starting
 cold every run.
+-->
+
+**Vraksha**: Run a security focused agent on your own machine locally.
+Every input you send goes through a security pipeline before any model touches it.
+**Vraksha** also uses an orchestrator + sub agents architecture which helps it run specialized workflow
+without the orchestrator itself having to know everything.
+And the important part is that your context is carried across all (mostly) sessions instead of having to
+start all over again everytime you start a new session.
 
 It runs end to end from the CLI today. There's no server or frontend in this
 repo, delivery is terminal-only here.
 
-## The pipeline
+## How the pipeline works
+**Vraksha** uses `Flow`, a custom data pipeline for **Vraksha**.
+**Flow:** The only part responsible for flowing data from one layer to another without
+processing anything on its own, instead it just automatically does y if doing x without y
+could lead to disaster and gives the system apis which allows them to get the data when
+they need and it also passes data from one layer to another on the basis of contract defined
 
-One thing moves between stages: a `Flow`. No free-form strings, ever. Each stage
+One thing moves between stages: a `Flow`. No free-form strings, just `Flow`. Each stage
 takes a `Flow` and hands back a `Flow` carrying the payload, request context,
 trace metadata, status, and a running journal of what every stage did. When a
 run dies six stages deep, that journal is the whole debugging story.
 
+> The layers:
 ```text
 intake -> sanitizer -> normalizer -> verifier -> orchestrator -> output filter -> delivery
 ```
 
-**intake** rate-limits, caps raw input size, detects the modality, and keeps the
+**intake:** It includes rate-limits, caps raw input size, detects the modality, and keeps the
 original input in request context.
 
-**sanitizer** runs ClamAV and YARA together as a pre-gate, then fans out to
-per-modality workers (text, PDF, image, audio, video) that validate and scrub
-without flattening quality in the process.
+**sanitizer:** It runs ClamAV and YARA together as a pre-gate to validate the input,
+then fans out to per-modality workers (text, PDF, image, audio, video) that validate
+and scrub without flattening quality in the process.
 
-**normalizer** turns sanitized bytes into a structured `NormalizedInput`. Text
+**normalizer:** It turns sanitized bytes into a structured `NormalizedInput`. Text
 and PDFs collapse to Unicode-normalized text, scanned PDFs get routed to an OCR
 expert, and image/audio/video stay native when the downstream model can take
-them. No LLM in this stage, by design. Normalization that hallucinates isn't
+them. No LLM is included in this stage, by design because normalization that hallucinates isn't
 normalization.
 
-**verifier** is a small fast model (Gemini by default) that makes the
+**verifier:** It is a small fast model (Gemini by default) that makes the
 input-safety call. The deterministic regex pass in front of it is only a hint.
-The model adjudicates, and its output is structured, never prose.
+The model takes decisions, and its output is structured data form, never prose
+or free form text.
 
-**orchestrator** is a reasoning loop I own rather than a framework's. The model
+**orchestrator:** It is a reasoning loop of **Vraksha**. The model
 emits one structured decision per turn, the loop executes it, and a decision log
 streams out as it goes. Experts (web research, writer/synthesis) are full agents
 with their own prompt, skills, and scoped tools. Tools (web_search, fetch_url,
@@ -49,31 +64,37 @@ self-register through one capability registry via `@tool` / `@expert` and get
 auto-discovered, so adding a capability is a decorated file dropped in a folder,
 no wiring.
 
-**output filter** is a final safety and groundedness pass on the draft.
+```text
+# Examples;
 
-**delivery** ships it. CLI for now.
+from regstry import tool
 
-PydanticAI is walled into `core/llm` and nothing else imports it. Per-stage
-model routing lives in `models.yaml`, so pointing a stage at a different
-provider is a config edit.
+@tool
+class CalculatorTool:
+    name = "calculator"
+    domain = "math"
+    description = "Evaluate a basic arithmetic expression (+ - * / // % ** and parentheses)."
+    input_schema = CalcIn # Input data schema class 
+    output_schema = CalcOut # Output data schema class
+    permission = PermissionLevel.READ
+    tags = ("math",)
+
+    async def run(self, args: CalcIn) -> CalcOut:
+        tree = ast.parse(args.expression, mode="eval")
+        return CalcOut(result=_eval(tree.body))
+```
+
+**output filter:** It is a final safety and groundedness pass on the draft that gets generated
+in the previous layers.
+
+**delivery** ships the final output. *Vraksha* only has CLI for now.
 
 ## Memory
 
-Four Qdrant tiers behind one door (`MemoryManager` / `MemoryPort`), scoped by a
-`user_id` payload filter on a single instance, embedded with
-nomic-embed-text-v1.5 at 768 dims through fastembed (local ONNX):
-
-- **wiki** — user-authored, highest trust, wins every conflict
-- **semantic** — durable facts
-- **episodic** — session history, the baseline tier
-- **procedural** — learned how-to
-
-Retrieval ranks by trust first, then score, with a recency half-life decay on
-top. At hydration the token budget is split across tiers by Lagrangian
-water-filling: floors first, the remainder proportional to how relevant each
-tier came back. Writes go through a policy layer (dedup at 0.97 cosine, a
-confidence floor, wiki stays user-only) and never come straight from an expert.
-The whole subsystem degrades instead of throwing. Memory never fails a run.
+- **wiki:** User-authored, highest trust, wins every conflict
+- **semantic:** Durable facts that *Vraksha* learns
+- **episodic:** Session history, the baseline tier
+- **procedural:** The processes that *Vraksha* learnt it should do in certain conditions.
 
 ## Layout
 
@@ -119,7 +140,7 @@ GROQ_API_KEY=
 HF_TOKEN=
 ```
 
-ClamAV runs as a daemon, and the media workers need a few system packages:
+ClamAV runs as a daemon, and the media workers need a few system packages, so u gotta do:
 
 ```bash
 docker compose up -d clamav
@@ -201,24 +222,6 @@ If you set up from source instead, it's the same thing without the wrapper:
 ```bash
 python main.py                        # interactive session
 python main.py "your research brief"  # one-shot, prints the result and exits
-```
-
-## Checking it works
-
-Compile the active layers:
-
-```bash
-python -m py_compile \
-  foundation/flow.py foundation/constants.py foundation/model_registry.py \
-  core/intake/intake.py core/intake/rate_limiter.py \
-  security/sanitizers/runner.py security/sanitizers/pre_sanitization.py \
-  core/normalizer/normalizer.py
-```
-
-Tests:
-
-```bash
-python -m pytest tests/
 ```
 
 The ClamAV EICAR test wants a live `clamd`. No daemon, it skips.
